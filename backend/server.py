@@ -418,6 +418,14 @@ async def support_ticket(req: SupportTicketRequest):
         }).execute()
     return {"success": True}
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "app": "MAXX API"}
+
+@app.get("/status")
+async def status_check():
+    return {"status": "ok"}
+
 @app.get("/api/status")
 async def status():
     return {"status": "online", "db": "connected" if db else "offline"}
