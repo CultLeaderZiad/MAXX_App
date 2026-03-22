@@ -125,7 +125,7 @@
 ##     status_history:
 ##         -working: true
 ##         -agent: "main"
-##         -comment: "Implemented Bcrypt password verification"
+##         -comment: "Implemented Bcrypt password verification and JWT issuance"
 ##   - task: "OTP Verification"
 ##     implemented: true
 ##     working: true
@@ -136,7 +136,18 @@
 ##     status_history:
 ##         -working: true
 ##         -agent: "main"
-##         -comment: "Fixed logic to preserve hashed password"
+##         -comment: "Fixed logic to preserve hashed password and initialize user stats"
+##   - task: "User Progress Endpoints"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Implemented /user/streak, /user/workout, /user/progress, /user/xp with JWT auth"
 
 ## frontend:
 ##   - task: "Home Dashboard"
@@ -205,17 +216,17 @@
 
 ## metadata:
 ##   created_by: "main_agent"
-##   version: "1.1"
-##   test_sequence: 3
+##   version: "1.2"
+##   test_sequence: 4
 ##   run_ui: false
 
 ## test_plan:
 ##   current_focus:
-##     - "User Progress API Endpoints"
+##     - "Onboarding Sync"
 ##   stuck_tasks: []
 ##   test_all: false
 ##   test_priority: "high_first"
 
 ## agent_communication:
 ##     -agent: "main"
-##     -message: "Implemented Bcrypt password hashing in backend. Verified register, otp, and login flows with test script."
+##     -message: "Completed Priority 2. Added User Progress Endpoints and real JWT support. Verified with test script."
