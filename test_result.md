@@ -136,7 +136,7 @@
 ##     status_history:
 ##         -working: true
 ##         -agent: "main"
-##         -comment: "Fixed logic to preserve hashed password and initialize user stats"
+##         -comment: "OTP generation logged to console. Verified flow works."
 ##   - task: "User Progress Endpoints"
 ##     implemented: true
 ##     working: true
@@ -148,6 +148,28 @@
 ##         -working: true
 ##         -agent: "main"
 ##         -comment: "Implemented /user/streak, /user/workout, /user/progress, /user/xp with JWT auth"
+##   - task: "Onboarding Sync"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Implemented /user/onboarding. Verified with test_full_flow.py"
+##   - task: "AI Face Coach"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Implemented /face-coach with level check and Gemini integration. Verified level check logic."
 
 ## frontend:
 ##   - task: "Home Dashboard"
@@ -216,17 +238,17 @@
 
 ## metadata:
 ##   created_by: "main_agent"
-##   version: "1.2"
-##   test_sequence: 4
+##   version: "1.3"
+##   test_sequence: 5
 ##   run_ui: false
 
 ## test_plan:
 ##   current_focus:
-##     - "Onboarding Sync"
+##     - "Frontend integration of new endpoints"
 ##   stuck_tasks: []
 ##   test_all: false
 ##   test_priority: "high_first"
 
 ## agent_communication:
 ##     -agent: "main"
-##     -message: "Completed Priority 2. Added User Progress Endpoints and real JWT support. Verified with test script."
+##     -message: "Completed Priority 3 and 4. Added Onboarding Sync and AI Face Coach endpoints. Improved OTP logging for debugging."

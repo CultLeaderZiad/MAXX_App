@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, status
+import google.generativeai as genai
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -7,11 +8,15 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+import json
+import base64
+import io
+from PIL import Image
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,6 +30,11 @@ db = client[os.environ.get('DB_NAME', 'maxx_app')]
 JWT_SECRET = os.environ.get('JWT_SECRET', 'secret_key_change_me')
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
+
+# Gemini Configuration
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -99,7 +109,6 @@ class OTPVerify(BaseModel):
     email: str
     code: str
 
-# New Models for Priority 2
 class StreakUpdate(BaseModel):
     streak_type: str
     current_streak: int
@@ -114,8 +123,27 @@ class XPUpdate(BaseModel):
     amount: int
     reason: str
 
+# Priority 3: Onboarding Sync Models
+class OnboardingData(BaseModel):
+    goals: List[str]
+    weak_spots: List[str]
+    stats: Dict[str, Any]
+
+# Priority 4: AI Face Coach Models
+class FaceCoachRequest(BaseModel):
+    ai_provider: str = "gemini"
+    photo_base64: str
+    baseline_photo_base64: Optional[str] = None
+
 # In-memory OTP store (for dev only)
 otp_store: dict[str, dict] = {}
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 @api_router.post("/auth/register")
 async def register(req: UserCreate):
@@ -132,12 +160,21 @@ async def register(req: UserCreate):
     user_data["password"] = get_password_hash(req.password)
     
     otp_store[req.email] = {"data": user_data, "otp": otp}
+    
+    # Log the OTP for debugging (Fix for "user can't receive it")
+    logger.info(f"OTP generated for {req.email}: {otp}")
+    
     return {"success": True, "requiresOtp": True}
 
 @api_router.post("/auth/verify-otp")
 async def verify_otp(req: OTPVerify):
     pending = otp_store.get(req.email)
-    if not pending or pending.get("otp") != req.code:
+    if not pending:
+        # Check if user already exists in DB to handle re-login via OTP flows if needed
+        # But requirement says this is for registration/verification.
+        return {"success": False, "error": "Invalid or expired code"}
+        
+    if pending.get("otp") != req.code:
         return {"success": False, "error": "Invalid or expired code"}
     
     user_data = pending.get("data", {}).copy()
@@ -170,7 +207,7 @@ async def verify_otp(req: OTPVerify):
     
     return {
         "access_token": access_token,
-        "refresh_token": f"refresh_mock_{user_id}", # Keep mock refresh for now as not specified in requirements
+        "refresh_token": f"refresh_mock_{user_id}",
         "user": response_user
     }
 
@@ -207,9 +244,6 @@ async def login(req: UserLogin):
 
 @api_router.post("/user/streak")
 async def update_streak(streak: StreakUpdate, current_user: dict = Depends(get_current_user)):
-    # Update or add streak in user's streaks list
-    # streak_type is unique key
-    
     result = await db.users.update_one(
         {"email": current_user["email"], "streaks.type": streak.streak_type},
         {"$set": {
@@ -219,7 +253,6 @@ async def update_streak(streak: StreakUpdate, current_user: dict = Depends(get_c
     )
     
     if result.matched_count == 0:
-        # Streak type doesn't exist, push new one
         await db.users.update_one(
             {"email": current_user["email"]},
             {"$push": {"streaks": {
@@ -230,8 +263,6 @@ async def update_streak(streak: StreakUpdate, current_user: dict = Depends(get_c
             }}}
         )
     else:
-        # Check if we need to update longest streak
-        # We need to fetch the specific streak to compare (optimized to just update if greater could be done with aggregation but logic is simpler here)
         user = await db.users.find_one({"email": current_user["email"]})
         for s in user.get("streaks", []):
             if s["type"] == streak.streak_type:
@@ -257,13 +288,6 @@ async def log_workout(workout: WorkoutLog, current_user: dict = Depends(get_curr
         }
     )
     
-    # Recalculate power level
-    # Formula: Level = 1 + (XP / 1000) (Simple example)
-    # We will trigger the power level update in a separate call or here. 
-    # Requirement says "POST /api/user/xp ... Recalculates and saves power_level"
-    # But usually workout also gives XP. Let's do a quick recalc here too.
-    
-    # Re-fetch user to get updated XP
     updated_user = await db.users.find_one({"email": current_user["email"]})
     new_xp = updated_user.get("xp", 0)
     new_level = 1 + (new_xp // 1000)
@@ -280,7 +304,7 @@ async def log_workout(workout: WorkoutLog, current_user: dict = Depends(get_curr
 async def get_progress(current_user: dict = Depends(get_current_user)):
     return {
         "streaks": current_user.get("streaks", []),
-        "recent_workouts": current_user.get("workout_completions", [])[-10:], # Last 10
+        "recent_workouts": current_user.get("workout_completions", [])[-10:],
         "power_level": current_user.get("power_level", 1),
         "xp": current_user.get("xp", 0),
         "level_title": current_user.get("level_title", "Beginner")
@@ -293,14 +317,13 @@ async def add_xp(xp_data: XPUpdate, current_user: dict = Depends(get_current_use
         {"$inc": {"xp": xp_data.amount}}
     )
     
-    # Recalculate power level
     updated_user = await db.users.find_one({"email": current_user["email"]})
     new_xp = updated_user.get("xp", 0)
     new_level = 1 + (new_xp // 1000)
     
     update_fields = {"power_level": new_level}
     
-    # Update title based on level (Simple logic)
+    # Update title based on level
     if new_level >= 50:
         update_fields["level_title"] = "Sigma"
     elif new_level >= 20:
@@ -309,6 +332,8 @@ async def add_xp(xp_data: XPUpdate, current_user: dict = Depends(get_current_use
         update_fields["level_title"] = "Advanced"
     elif new_level >= 5:
         update_fields["level_title"] = "Intermediate"
+    else:
+        update_fields["level_title"] = "Beginner"
         
     await db.users.update_one(
         {"email": current_user["email"]},
@@ -321,6 +346,113 @@ async def add_xp(xp_data: XPUpdate, current_user: dict = Depends(get_current_use
         "new_level": new_level,
         "level_title": update_fields.get("level_title", current_user.get("level_title"))
     }
+
+# --- Priority 3: Onboarding Sync ---
+
+@api_router.post("/user/onboarding")
+async def sync_onboarding(data: OnboardingData, current_user: dict = Depends(get_current_user)):
+    """
+    Saves user goals, weak_spots, and stats from onboarding.
+    """
+    update_data = {
+        "goals": data.goals,
+        "weak_spots": data.weak_spots,
+        "onboarding_stats": data.stats, # Storing stats in a separate field or merge? 
+        # Request says "Saves to users collection".
+        # Let's add an onboarding_completed flag too
+        "is_onboarded": True
+    }
+    
+    await db.users.update_one(
+        {"email": current_user["email"]},
+        {"$set": update_data}
+    )
+    
+    return {"success": True, "message": "Onboarding data synced"}
+
+# --- Priority 4: AI Face Coach ---
+
+@api_router.post("/face-coach")
+async def face_coach_analysis(req: FaceCoachRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Analyzes facial photo using Gemini Vision API.
+    Requires 'Alpha' or 'Sigma' level title.
+    """
+    # 1. Plan/Level Check
+    level_title = current_user.get("level_title", "Beginner")
+    # Case-insensitive check
+    if level_title.lower() not in ["alpha", "sigma"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access denied. Required level: Alpha or Sigma. Current: {level_title}"
+        )
+
+    # 2. Check API Key
+    if not GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY not found in environment variables")
+        return {"error": "AI service unavailable. Please contact support."}
+
+    try:
+        # 3. Process Images
+        # Helper to decode base64
+        def decode_image(b64_str):
+            if "," in b64_str:
+                b64_str = b64_str.split(",")[1]
+            return Image.open(io.BytesIO(base64.b64decode(b64_str)))
+
+        img = decode_image(req.photo_base64)
+        
+        prompt_text = (
+            "Analyze this facial photo for a young man tracking his self-improvement progress. "
+            "Analyze ONLY vs their own baseline — no external scoring. "
+            "Check: jawline definition, facial symmetry, posture alignment. "
+            "Return JSON only: "
+            "{ improvements: string[], areas_to_focus: string[], "
+            "encouragement: string, week_summary: string }"
+        )
+
+        # Try to use a stable model version
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        
+        inputs = [prompt_text, img]
+        if req.baseline_photo_base64:
+            baseline_img = decode_image(req.baseline_photo_base64)
+            inputs.insert(1, "Here is the baseline photo for comparison:")
+            inputs.insert(2, baseline_img)
+            inputs.append("Compare specifically against the baseline provided.")
+
+        # 4. Call Gemini
+        response = model.generate_content(inputs)
+        
+        # 5. Parse JSON
+        try:
+            # Cleanup markdown if present
+            text = response.text
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+                
+            analysis_json = json.loads(text)
+            
+            # 6. Save Result
+            session_data = {
+                "user_id": current_user["_id"],
+                "date": datetime.utcnow().isoformat(),
+                "result": analysis_json,
+                # Not saving full images to DB to avoid bloat, maybe just IDs if stored elsewhere
+            }
+            await db.face_coach_sessions.insert_one(session_data)
+            
+            return analysis_json
+            
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse Gemini response: {response.text}")
+            return {"error": "Analysis failed to parse. Please try again."}
+            
+    except Exception as e:
+        logger.error(f"Face Coach Error: {str(e)}")
+        return {"error": "Analysis failed. Please try again."}
 
 @api_router.get("/status")
 async def root():
@@ -336,13 +468,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
