@@ -182,5 +182,6 @@ const styles = StyleSheet.create({
   selectBtnText: { color: '#0A0A0A', fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 },
   selectBtnOutline: { height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', marginTop: SPACING.md, borderWidth: 1 },
   selectBtnOutlineText: { fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 },
+  planBtn: { borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   disclaimer: { fontSize: 12, textAlign: 'center', marginTop: SPACING.md },
 });

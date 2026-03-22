@@ -81,11 +81,7 @@ export default function HomeScreen() {
             </View>
           </View>
           
-          {[
-            { id: '1', name: 'Mewing — Jaw Set A', xp: 50, completed: true },
-            { id: '2', name: 'Posture Check', xp: 50, completed: false },
-            { id: '3', name: '20 Push-ups', xp: 30, completed: false },
-          ].map((m) => (
+          {missions.map((m: any) => (
             <TouchableOpacity key={m.id} onPress={() => toggleMission(m.id)} style={styles.missionRow}>
               <View style={[styles.missionCheck, { borderColor: m.completed ? theme.gold : theme.border, backgroundColor: m.completed ? theme.gold : 'transparent' }]}>
                 {m.completed && <Feather name="check" size={12} color="#0A0A0A" /> || <Feather name="square" size={12} color="transparent" />}
@@ -153,16 +149,22 @@ const styles = StyleSheet.create({
   trialBanner: { borderRadius: RADIUS.lg, borderWidth: 1, padding: SPACING.md, marginBottom: SPACING.md, position: 'relative' },
   trialContent: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   trialText: { fontSize: 13, flex: 1 },
+  trialDays: { },
   trialClose: { position: 'absolute', top: 8, right: 8, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   missionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
   missionTitle: { fontSize: 16 },
   missionRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: 10 },
   missionCheck: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   missionName: { fontSize: 14, flex: 1 },
+  missionCard: { },
+  streakBadge: { },
+  streakTextBold: { },
+  xpPill: { },
   bonusRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderTopWidth: 1, paddingTop: SPACING.md, marginTop: SPACING.sm },
   bonusText: { fontSize: 14 },
   streakRow: { alignItems: 'flex-end', marginTop: SPACING.sm },
   streakText: { fontSize: 12 },
+  wisdomCard: { },
   wisdomLabel: { fontSize: 9, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: SPACING.sm },
   wisdomQuote: { fontSize: 18, fontStyle: 'italic', lineHeight: 26 },
   wisdomAuthor: { fontSize: 13, marginTop: SPACING.sm },
