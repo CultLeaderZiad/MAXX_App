@@ -1,0 +1,237 @@
+{
+  "theme": "dark_premium",
+  "app_type": "mobile_web_app",
+  "framework": "React Native Expo",
+  "typography": {
+    "primary": {
+      "family": "Cinzel-Bold",
+      "weight": "bold",
+      "usage": "Headings, Power Level, Level Titles, Hero Text",
+      "fallback": "serif"
+    },
+    "secondary": {
+      "family": "Inter",
+      "weight": "400, 500, 600",
+      "usage": "Body text, labels, button text, descriptions",
+      "fallback": "sans-serif"
+    },
+    "scales": {
+      "hero": { "fontSize": 48, "lineHeight": 56, "letterSpacing": -1 },
+      "h1": { "fontSize": 32, "lineHeight": 40, "letterSpacing": 0.5 },
+      "h2": { "fontSize": 24, "lineHeight": 32, "letterSpacing": 0.5 },
+      "h3": { "fontSize": 20, "lineHeight": 28, "letterSpacing": 0.5 },
+      "bodyLarge": { "fontSize": 18, "lineHeight": 26 },
+      "body": { "fontSize": 16, "lineHeight": 24 },
+      "bodySmall": { "fontSize": 14, "lineHeight": 20 },
+      "caption": { "fontSize": 12, "lineHeight": 16, "textTransform": "uppercase", "letterSpacing": 1.2 }
+    }
+  },
+  "colors": {
+    "dark": {
+      "bgPrimary": "#0A0A0A",
+      "bgSurface": "#111111",
+      "bgElevated": "#1A1A1A",
+      "bgInput": "#161616",
+      "textPrimary": "#FFFFFF",
+      "textSecondary": "#9A9A9A",
+      "textMuted": "#444444",
+      "border": "#2A2A2A",
+      "borderActive": "#C8A96E",
+      "gold": "#C8A96E",
+      "goldDim": "#8A7240",
+      "green": "#2ECC71",
+      "red": "#E74C3C",
+      "orange": "#E67E22",
+      "blue": "#4A90D9",
+      "selectedBorder": "rgba(200, 169, 110, 0.27)"
+    },
+    "light": {
+      "bgPrimary": "#F5F5F5",
+      "bgSurface": "#FFFFFF",
+      "bgElevated": "#F0F0F0",
+      "bgInput": "#EBEBEB",
+      "textPrimary": "#0A0A0A",
+      "textSecondary": "#555555",
+      "textMuted": "#999999",
+      "border": "#DDDDDD",
+      "borderActive": "#B8860B",
+      "gold": "#B8860B"
+    },
+    "gradients": {
+      "goldPrimary": {
+        "colors": ["#8A6420", "#C8A96E", "#F0D090"],
+        "start": { "x": 0, "y": 0 },
+        "end": { "x": 1, "y": 0 }
+      }
+    }
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "xxl": 48,
+    "xxxl": 64,
+    "touchTargetMin": 44,
+    "baseGrid": 8
+  },
+  "visual_enhancers": {
+    "borderRadius": {
+      "sm": 8,
+      "md": 12,
+      "lg": 14,
+      "xl": 24,
+      "pill": 9999
+    },
+    "borders": {
+      "default": { "width": 1, "color": "#2A2A2A" },
+      "active": { "width": 1, "color": "rgba(200, 169, 110, 0.27)" }
+    },
+    "shadows": {
+      "glowGold": {
+        "shadowColor": "#C8A96E",
+        "shadowOffset": { "width": 0, "height": 4 },
+        "shadowOpacity": 0.3,
+        "shadowRadius": 12,
+        "elevation": 8
+      }
+    }
+  },
+  "component_guidelines": {
+    "Card": {
+      "backgroundColor": "colors.bgSurface",
+      "borderWidth": 1,
+      "borderColor": "colors.border",
+      "borderRadius": 14,
+      "padding": 16
+    },
+    "PrimaryButton": {
+      "height": 48,
+      "borderRadius": 12,
+      "usage": "Use expo-linear-gradient as background. Ensure text is dark (#0A0A0A) on gold.",
+      "textStyle": { "fontFamily": "Inter", "fontWeight": "bold", "fontSize": 16, "color": "#0A0A0A" }
+    },
+    "SecondaryButton": {
+      "height": 48,
+      "borderRadius": 12,
+      "borderWidth": 1,
+      "borderColor": "rgba(200, 169, 110, 0.27)",
+      "backgroundColor": "transparent",
+      "textStyle": { "color": "#C8A96E", "fontFamily": "Inter", "fontWeight": "600", "fontSize": 16 }
+    },
+    "DangerButton": {
+      "height": 48,
+      "borderRadius": 12,
+      "borderWidth": 1,
+      "borderColor": "rgba(231, 76, 60, 0.25)",
+      "backgroundColor": "transparent",
+      "textStyle": { "color": "#E74C3C", "fontFamily": "Inter", "fontWeight": "600", "fontSize": 16 }
+    },
+    "ProgressBar": {
+      "height": 6,
+      "trackColor": "#1A1A1A",
+      "fill": "goldPrimary gradient",
+      "borderRadius": 3
+    },
+    "SubTabs": {
+      "backgroundColor": "#111111",
+      "borderRadius": 8,
+      "activeBackgroundColor": "#1A1A1A",
+      "activeTextColor": "#C8A96E",
+      "inactiveTextColor": "#9A9A9A"
+    },
+    "BottomNavigation": {
+      "height": 80,
+      "backgroundColor": "#0A0A0A",
+      "borderTopWidth": 1,
+      "borderTopColor": "#2A2A2A",
+      "activeIconColor": "#C8A96E",
+      "inactiveIconColor": "#444444",
+      "activeIndicator": "4px gold dot below icon"
+    },
+    "DrumInput": {
+      "usage": "OTP screen 6-digit inputs. Render as individual styled cells.",
+      "height": 56,
+      "width": 48,
+      "backgroundColor": "#161616",
+      "borderWidth": 1,
+      "borderColor": "#2A2A2A",
+      "borderRadius": 12,
+      "activeBorderColor": "#C8A96E"
+    },
+    "ScreenOverlay": {
+      "usage": "CRITICAL: DO NOT use complete transparent background in header, overlays, or any surface that has content under it. Must use deep dark semi-transparent like rgba(10, 10, 10, 0.9)."
+    }
+  },
+  "layouts": {
+    "screen": {
+      "flex": 1,
+      "backgroundColor": "colors.bgPrimary"
+    },
+    "content": {
+      "padding": 24
+    },
+    "grid2Column": {
+      "flexDirection": "row",
+      "flexWrap": "wrap",
+      "justifyContent": "space-between",
+      "gap": 16
+    }
+  },
+  "motion": {
+    "transitions": "Use react-native-reanimated or Animated for smooth transitions. Avoid heavy Javascript-driven animations.",
+    "interactions": "Use TouchableOpacity with activeOpacity={0.7} for standard button presses. Buttons should feel responsive and tactical."
+  },
+  "accessibility": {
+    "touchTargets": "All interactive elements MUST be at least 44x44px.",
+    "contrast": "Maintain high contrast. Gold on dark background is good, but text on gold MUST be #0A0A0A for readability.",
+    "test_id": "All interactive and key informational elements MUST include a testID attribute (React Native equivalent of data-testid) to facilitate robust automated testing."
+  },
+  "media": {
+    "images": "Use React Native <Image /> with appropriate resizeMode (cover for backgrounds, contain for icons). Background images should have a dark overlay to maintain text readability."
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1768527553643-94fbc9a932cc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwyfHxnb2xkJTIwcGFydGljbGVzJTIwZGFya3xlbnwwfHx8fDE3NzQxNDA4Njh8MA&ixlib=rb-4.1.0&q=85",
+      "category": "Welcome Screen Background",
+      "description": "Golden glitter sparkles with a dark background for the welcome/onboarding splash screen."
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1576913105965-1d0b6a19a482?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwxfHxtZW4lMjBmaXRuZXNzJTIwZGFya3xlbnwwfHx8fDE3NzQxNDA4NjN8MA&ixlib=rb-4.1.0&q=85",
+      "category": "Body Training Program",
+      "description": "Dark, moody fitness image for the advanced body training tier."
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1636714420994-78c5f6f45fba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwxfHxzdG9pYyUyMHN0YXR1ZXxlbnwwfHx8fDE3NzQxNDA4NjN8MA&ixlib=rb-4.1.0&q=85",
+      "category": "Wisdom Drop",
+      "description": "Stoic statue background to be used behind daily wisdom quotes."
+    }
+  ],
+  "libraries": {
+    "icons": "@expo/vector-icons (import { Feather } from '@expo/vector-icons')",
+    "gradients": "expo-linear-gradient",
+    "safe_area": "react-native-safe-area-context"
+  },
+  "instructions_to_main_agent": [
+    "You are building a React Native application. DO NOT use HTML elements (div, span, button, etc.).",
+    "DO NOT use Tailwind classes (className). Use React Native StyleSheet.",
+    "All screens MUST be wrapped in SafeAreaView from react-native-safe-area-context.",
+    "Use KeyboardAvoidingView with behavior='padding' for any screen containing text inputs.",
+    "Colors are pre-defined in this guideline. Use the exact hex values or gradient stops.",
+    "For the gold gradient, use LinearGradient from 'expo-linear-gradient' with colors={['#8A6420', '#C8A96E', '#F0D090']} start={{x: 0, y: 0}} end={{x: 1, y: 0}}.",
+    "Never hardcode colors in components. Create a central ThemeContext or constants file for easy switching between dark/light mode.",
+    "Test IDs are required. Use `testID='your-kebab-case-id'` instead of `data-testid` since this is React Native.",
+    "For icons, exclusively use Feather from @expo/vector-icons as instructed.",
+    "Ensure the gold color is used for active states and accents, while the background stays heavily dark (#0A0A0A) to maintain the premium feel."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Avoid generic centered layouts. Use left alignment for readability in data-heavy cards.",
+    "Create depth through border colors and subtle shadows, rather than just solid grey backgrounds.",
+    "Never use AI assistant Emoji characters. Rely on Feather icons.",
+    "Use 8pt grid spacing system. Use padding/margins like 8, 16, 24, 32.",
+    "Buttons should have active feedback. Use TouchableOpacity with activeOpacity={0.8}.",
+    "Prioritize optical alignment over geometric alignment.",
+    "CRITICAL: All interactive and key informational elements MUST include a testID attribute (e.g. testID='login-button') to facilitate robust automated testing."
+  ]
+}
