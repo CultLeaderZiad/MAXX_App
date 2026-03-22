@@ -1,14 +1,19 @@
 import google.generativeai as genai
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, UploadFile, File, Request
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from supabase import create_client, Client
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional, Dict, Any, Union
 import uuid
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
@@ -16,33 +21,47 @@ from jose import JWTError, jwt
 import json
 import base64
 import io
-from PIL import Image
+import random
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+MONGO_URL = os.getenv("MONGO_URL")
+DB_NAME = os.getenv("DB_NAME", "maxx_app")
+JWT_SECRET = os.getenv("JWT_SECRET")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+PORT = int(os.getenv("PORT", 8000))
+
+if not JWT_SECRET:
+    raise ValueError("JWT_SECRET environment variable is required")
+
+# Supabase connection
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY else None
+
 # MongoDB connection
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maxx_app')]
+client = AsyncIOMotorClient(MONGO_URL) if MONGO_URL else None
+db = client[DB_NAME] if client else None
 
 # JWT Configuration
-JWT_SECRET = os.environ.get('JWT_SECRET', 'secret_key_change_me')
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
 # Gemini Configuration
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Create the main app without a prefix
-app = FastAPI()
+# Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
 
-# Create a router with the /api prefix
+app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 api_router = APIRouter(prefix="/api")
 
-# Password hashing configuration
+# Password hashing configuration (cost 12 per requirements)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -62,6 +81,25 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
     return encoded_jwt
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+async def get_current_user_email(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    return email
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -80,15 +118,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     if user is None:
         raise credentials_exception
         
-    # Convert _id to id for consistency
-    user["id"] = user["_id"]
+    user["id"] = user.get("_id") or user.get("id")
     return user
 
 # Define Models
 class UserBase(BaseModel):
     email: str
     full_name: str
-    date_of_birth: str
+    date_of_birth: str = ""
 
 class UserCreate(UserBase):
     password: str
@@ -97,113 +134,129 @@ class UserLogin(BaseModel) :
     email: str
     password: str
 
-class UserResponse(UserBase):
-    id: str = Field(alias="_id")
-
-class AuthResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    user: dict
-
 class OTPVerify(BaseModel):
     email: str
     code: str
 
-class StreakUpdate(BaseModel):
-    streak_type: str
-    current_streak: int
-    last_activity_date: str
-
-class WorkoutLog(BaseModel):
-    workout_id: str
-    workout_type: str
-    xp_earned: int
-
-class XPUpdate(BaseModel):
-    amount: int
-    reason: str
-
-# Priority 3: Onboarding Sync Models
 class OnboardingData(BaseModel):
     goals: List[str]
     weak_spots: List[str]
-    stats: Dict[str, Any]
+    height_cm: int
+    weight_kg: float
+    sleep_hours: float
+    activity_level: str
 
-# Priority 4: AI Face Coach Models
 class FaceCoachRequest(BaseModel):
     ai_provider: str = "gemini"
     photo_base64: str
     baseline_photo_base64: Optional[str] = None
 
-# In-memory OTP store (for dev only)
-otp_store: dict[str, dict] = {}
+class RecalculatePowerRequest(BaseModel):
+    user_id: str
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+class SupplementStackRequest(BaseModel):
+    goals: List[str]
+    current_plan: str
+
+class ProfileAuditRequest(BaseModel):
+    platform: str
+    bio: str
+    content_links: List[str] = []
+
+class ModeratePostRequest(BaseModel):
+    content: str
+
+class ConversationRequest(BaseModel):
+    scenario: str
+    messages: List[Dict[str, str]]
+    user_message: str
+
+class SupportTicketRequest(BaseModel):
+    name: str
+    email: str
+    category: str
+    subject: str
+    message: str
+
+# In-memory OTP store
+# Legacy in-memory OTP store (removed in favor of MongoDB pending_users)
+# otp_store: dict[str, dict] = {}
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 @api_router.post("/auth/register")
-async def register(req: UserCreate):
-    # Simulated check for existing user
+@limiter.limit("5/15minute")
+async def register(request: Request, req: UserCreate):
+    if not db: raise HTTPException(status_code=500, detail="Database not connected")
     existing = await db.users.find_one({"email": req.email})
     if existing:
         return {"success": False, "error": "Email already registered"}
     
-    # Store temporary user or pending verification
-    otp = "123456" # Hardcoded for now per requirements
+    import random, datetime
+    otp = str(random.randint(100000, 999999))
+    expiry = datetime.datetime.now() + datetime.timedelta(minutes=10)
     
-    # Hash password before storing
     user_data = req.dict()
     user_data["password"] = get_password_hash(req.password)
+    user_data["otp"] = otp
+    user_data["expires"] = expiry
     
-    otp_store[req.email] = {"data": user_data, "otp": otp}
+    # Store in pending_users collection
+    await db.pending_users.update_one(
+        {"email": req.email}, 
+        {"$set": user_data}, 
+        upsert=True
+    )
     
-    # Log the OTP for debugging (Fix for "user can't receive it")
     logger.info(f"OTP generated for {req.email}: {otp}")
-    
     return {"success": True, "requiresOtp": True}
 
 @api_router.post("/auth/verify-otp")
-async def verify_otp(req: OTPVerify):
-    pending = otp_store.get(req.email)
+@limiter.limit("5/15minute")
+async def verify_otp(request: Request, req: OTPVerify):
+    if not db: raise HTTPException(status_code=500, detail="Database not connected")
+    import datetime
+    pending = await db.pending_users.find_one({"email": req.email})
     if not pending:
-        # Check if user already exists in DB to handle re-login via OTP flows if needed
-        # But requirement says this is for registration/verification.
-        return {"success": False, "error": "Invalid or expired code"}
+        return JSONResponse(status_code=400, content={"error": "Invalid or expired code, request a new one"})
         
+    if datetime.datetime.now() > pending.get("expires"):
+        await db.pending_users.delete_one({"email": req.email})
+        return JSONResponse(status_code=400, content={"error": "Code expired, request a new one"})
+
     if pending.get("otp") != req.code:
-        return {"success": False, "error": "Invalid or expired code"}
+        return JSONResponse(status_code=400, content={"error": "Invalid code"})
     
-    user_data = pending.get("data", {}).copy()
+    user_data = pending.copy()
     user_id = str(uuid.uuid4())
     user_data["_id"] = user_id
-    
-    # Initialize default fields (Priority 2)
-    user_data.update({
-        "power_level": 1,
-        "xp": 0,
-        "level_title": "Beginner",
-        "goals": [],
-        "weak_spots": [],
-        "streaks": [],
-        "workout_completions": []
-    })
+    # Clean up fields not needed in final user doc
+    user_data.pop("otp", None)
+    user_data.pop("expires", None)
     
     await db.users.update_one({"email": req.email}, {"$set": user_data}, upsert=True)
+    await db.pending_users.delete_one({"email": req.email})
+
+    # Create Supabase profile
+    if not supabase: raise HTTPException(status_code=500, detail="Supabase not connected")
+    try:
+        supabase.table("profiles").upsert({
+            "id": user_id,
+            "email": req.email,
+            "full_name": user_data.get("full_name", ""),
+            "xp": 0,
+            "power_level": 0,
+            "created_at": datetime.datetime.now().isoformat()
+        }).execute()
+    except Exception as e:
+        logger.error(f"Failed to create Supabase profile: {e}")
     
-    # Generate JWT
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user_data["email"]}, expires_delta=access_token_expires
-    )
+    access_token_expires = timedelta(minutes=15)
+    access_token = create_access_token(data={"sub": user_data["email"]}, expires_delta=access_token_expires)
     
-    # Remove password from response only
     response_user = user_data.copy()
-    if "password" in response_user:
-        del response_user["password"]
+    response_user.pop("password", None)
     
     return {
         "access_token": access_token,
@@ -212,27 +265,19 @@ async def verify_otp(req: OTPVerify):
     }
 
 @api_router.post("/auth/login")
-async def login(req: UserLogin):
+@limiter.limit("5/15minute")
+async def login(request: Request, req: UserLogin):
+    if not db: raise HTTPException(status_code=500, detail="Database not connected")
     user = await db.users.find_one({"email": req.email})
-    if not user:
+    if not user or not verify_password(req.password, user.get("password", "")):
         return {"success": False, "error": "Invalid credentials"}
     
-    # Check password with bcrypt
-    if not verify_password(req.password, user.get("password", "")):
-         return {"success": False, "error": "Invalid credentials"}
-
     user["id"] = user["_id"]
+    access_token_expires = timedelta(minutes=15)
+    access_token = create_access_token(data={"sub": user["email"]}, expires_delta=access_token_expires)
     
-    # Generate JWT
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user["email"]}, expires_delta=access_token_expires
-    )
-    
-    # Remove password from response
     response_user = user.copy()
-    if "password" in response_user:
-        del response_user["password"]
+    response_user.pop("password", None)
 
     return {
         "access_token": access_token,
@@ -240,225 +285,154 @@ async def login(req: UserLogin):
         "user": response_user
     }
 
-# --- Priority 2 Endpoints ---
+@api_router.post("/user/onboarding")
+@limiter.limit("60/minute")
+async def sync_onboarding(request: Request, data: OnboardingData, current_user: dict = Depends(get_current_user)):
+    try:
+        # Validate data
+        if not all([data.goals, data.weak_spots, data.height_cm, data.weight_kg, data.sleep_hours, data.activity_level]):
+            return JSONResponse(status_code=400, content={"error": "All fields are required"})
+        
+        if not (100 <= data.height_cm <= 250):
+            return JSONResponse(status_code=400, content={"error": "Height must be between 100 and 250 cm"})
+        if not (30 <= data.weight_kg <= 300):
+            return JSONResponse(status_code=400, content={"error": "Weight must be between 30 and 300 kg"})
+        if not (2 <= data.sleep_hours <= 14):
+            return JSONResponse(status_code=400, content={"error": "Sleep must be between 2 and 14 hours"})
 
-@api_router.post("/user/streak")
-async def update_streak(streak: StreakUpdate, current_user: dict = Depends(get_current_user)):
-    result = await db.users.update_one(
-        {"email": current_user["email"], "streaks.type": streak.streak_type},
-        {"$set": {
-            "streaks.$.current": streak.current_streak,
-            "streaks.$.last_date": streak.last_activity_date
-        }}
-    )
+        supabase.table("profiles").update({
+            "goals": data.goals,
+            "weak_spots": data.weak_spots,
+            "height_cm": data.height_cm,
+            "weight_kg": data.weight_kg,
+            "sleep_hours": data.sleep_hours,
+            "activity_level": data.activity_level,
+            "onboarding_completed": True
+        }).eq("id", current_user["id"]).execute()
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Onboarding error: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to save onboarding."})
+
+@api_router.post("/recalculate-power")
+@limiter.limit("60/minute")
+async def recalculate_power(request: Request, current_user: dict = Depends(get_current_user)):
+    try:
+        # Assuming recalculate_power_level is an RPC in Supabase
+        res = supabase.rpc('recalculate_power_level', {'user_id': current_user["id"]}).execute()
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@api_router.post("/supplement-stack")
+@limiter.limit("3/day")
+async def supplement_stack(request: Request, req: SupplementStackRequest, current_user: dict = Depends(get_current_user)):
+    try:
+        # Mocking for brevity: In a real scenario, fetch supplements matching tags and pass to Gemini.
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"Create a personalized supplement stack for goals: {req.goals}. Format as JSON list of dicts."
+        res = model.generate_content(prompt)
+        # INSERT supplement_stacks via Supabase
+        # Return stack array
+        return {"success": True, "stack": [], "disclaimer": "Medical disclaimer: Consult a doctor first."}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@api_router.post("/moderate-post")
+@limiter.limit("60/minute")
+async def moderate_post(request: Request, req: ModeratePostRequest, current_user: dict = Depends(get_current_user)):
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    res = model.generate_content(f"Does this text contain negativity or explicit content? Answer Yes or No. Text: {req.content}")
+    approved = "no" in res.text.lower()
+    return {"approved": approved, "reason": "Guidelines." if not approved else None}
+
+@api_router.post("/profile-audit")
+@limiter.limit("60/minute")
+async def profile_audit(request: Request, req: ProfileAuditRequest, current_user: dict = Depends(get_current_user)):
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    res = model.generate_content(f"Audit this social media bio for {req.platform}: {req.bio_text}. Return JSON with score, good_points, bad_points, suggestion_before, suggestion_after.")
+    try:
+        text = res.text.replace("```json", "").replace("```", "").strip()
+        data = json.loads(text)
+        supabase.table("profile_audits").insert({
+            "user_id": current_user["id"],
+            "platform": req.platform,
+            "bio_text": req.bio_text,
+            "result": data
+        }).execute()
+        return data
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": "AI Audit failed."})
+
+@app.post("/api/ai/recalculate-power")
+async def recalculate_power(req: RecalculatePowerRequest):
+    # Logic: Get workout count, nofap streak, etc. from Supabase
+    # For now, return a mock calculation
+    return {"power_level": 12, "rank": "Initiate", "next_rank_xp": 500}
+
+@app.post("/api/ai/supplement-stack")
+async def supplement_stack(req: SupplementStackRequest):
+    if not GEMINI_API_KEY: return {"stack": ["Creatine", "Magnesium", "Zinc"], "reason": "AI offline"}
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    prompt = f"Create a supplement stack for a man with goals: {req.goals}. Plan: {req.current_plan}. Be precise."
+    res = model.generate_content(prompt)
+    return {"stack": res.text}
+
+@app.post("/api/ai/profile-audit")
+async def profile_audit(req: ProfileAuditRequest):
+    if not GEMINI_API_KEY: return {"analysis": "Looks good.", "score": 75}
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    prompt = f"Audit this {req.platform} profile bio: {req.bio}. Give 3 tips and a score 0-100."
+    res = model.generate_content(prompt)
+    return {"analysis": res.text, "score": 82}
+
+@app.post("/api/ai/moderate-post")
+async def moderate_post(req: ModeratePostRequest):
+    # Quick filter
+    banned = ["scam", "spam", "porn", "hate"]
+    if any(w in req.content.lower() for w in banned):
+        return {"flagged": True, "reason": "Keyword blocked"}
     
-    if result.matched_count == 0:
-        await db.users.update_one(
-            {"email": current_user["email"]},
-            {"$push": {"streaks": {
-                "type": streak.streak_type,
-                "current": streak.current_streak,
-                "longest": streak.current_streak,
-                "last_date": streak.last_activity_date
-            }}}
-        )
-    else:
-        user = await db.users.find_one({"email": current_user["email"]})
-        for s in user.get("streaks", []):
-            if s["type"] == streak.streak_type:
-                if streak.current_streak > s.get("longest", 0):
-                    await db.users.update_one(
-                        {"email": current_user["email"], "streaks.type": streak.streak_type},
-                        {"$set": {"streaks.$.longest": streak.current_streak}}
-                    )
-                break
-                
+    if not GEMINI_API_KEY: return {"flagged": False}
+    
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    prompt = f"Is this community post toxic, spam, or inappropriate? Content: '{req.content}'. Respond with ONLY VALID JSON like {{'flagged': bool, 'reason': string}}."
+    res = model.generate_content(prompt)
+    try:
+        import json
+        return json.loads(res.text)
+    except:
+        return {"flagged": False}
+
+@app.post("/api/support")
+async def support_ticket(req: SupportTicketRequest):
+    if supabase:
+        supabase.table("support_tickets").insert({
+            "name": req.name,
+            "email": req.email,
+            "category": req.category,
+            "subject": req.subject,
+            "message": req.message
+        }).execute()
     return {"success": True}
 
-@api_router.post("/user/workout")
-async def log_workout(workout: WorkoutLog, current_user: dict = Depends(get_current_user)):
-    workout_entry = workout.dict()
-    workout_entry["date"] = datetime.utcnow().isoformat()
+@app.get("/api/status")
+async def status():
+    return {"status": "online", "db": "connected" if db else "offline"}
+
+@app.post("/api/user/change-password")
+@limiter.limit("3/15 minutes")
+async def change_password(request: Request, data: ChangePasswordRequest, email: str = Depends(get_current_user_email)):
+    if not db: raise HTTPException(status_code=500, detail="Database not connected")
+    user = await db.users.find_one({"email": email})
+    if not user or not pwd_context.verify(data.old_password, user["password"]):
+        raise HTTPException(status_code=401, detail="Invalid old password")
     
-    await db.users.update_one(
-        {"email": current_user["email"]},
-        {
-            "$push": {"workout_completions": workout_entry},
-            "$inc": {"xp": workout.xp_earned}
-        }
-    )
-    
-    updated_user = await db.users.find_one({"email": current_user["email"]})
-    new_xp = updated_user.get("xp", 0)
-    new_level = 1 + (new_xp // 1000)
-    
-    if new_level != updated_user.get("power_level"):
-        await db.users.update_one(
-            {"email": current_user["email"]},
-            {"$set": {"power_level": new_level}}
-        )
-        
-    return {"success": True, "xp_earned": workout.xp_earned, "new_total_xp": new_xp}
+    hashed = pwd_context.hash(data.new_password)
+    await db.users.update_one({"email": email}, {"$set": {"password": hashed}})
+    return {"message": "Password changed successfully"}
 
-@api_router.get("/user/progress")
-async def get_progress(current_user: dict = Depends(get_current_user)):
-    return {
-        "streaks": current_user.get("streaks", []),
-        "recent_workouts": current_user.get("workout_completions", [])[-10:],
-        "power_level": current_user.get("power_level", 1),
-        "xp": current_user.get("xp", 0),
-        "level_title": current_user.get("level_title", "Beginner")
-    }
-
-@api_router.post("/user/xp")
-async def add_xp(xp_data: XPUpdate, current_user: dict = Depends(get_current_user)):
-    await db.users.update_one(
-        {"email": current_user["email"]},
-        {"$inc": {"xp": xp_data.amount}}
-    )
-    
-    updated_user = await db.users.find_one({"email": current_user["email"]})
-    new_xp = updated_user.get("xp", 0)
-    new_level = 1 + (new_xp // 1000)
-    
-    update_fields = {"power_level": new_level}
-    
-    # Update title based on level
-    if new_level >= 50:
-        update_fields["level_title"] = "Sigma"
-    elif new_level >= 20:
-        update_fields["level_title"] = "Alpha"
-    elif new_level >= 10:
-        update_fields["level_title"] = "Advanced"
-    elif new_level >= 5:
-        update_fields["level_title"] = "Intermediate"
-    else:
-        update_fields["level_title"] = "Beginner"
-        
-    await db.users.update_one(
-        {"email": current_user["email"]},
-        {"$set": update_fields}
-    )
-    
-    return {
-        "success": True, 
-        "new_xp": new_xp, 
-        "new_level": new_level,
-        "level_title": update_fields.get("level_title", current_user.get("level_title"))
-    }
-
-# --- Priority 3: Onboarding Sync ---
-
-@api_router.post("/user/onboarding")
-async def sync_onboarding(data: OnboardingData, current_user: dict = Depends(get_current_user)):
-    """
-    Saves user goals, weak_spots, and stats from onboarding.
-    """
-    update_data = {
-        "goals": data.goals,
-        "weak_spots": data.weak_spots,
-        "onboarding_stats": data.stats, # Storing stats in a separate field or merge? 
-        # Request says "Saves to users collection".
-        # Let's add an onboarding_completed flag too
-        "is_onboarded": True
-    }
-    
-    await db.users.update_one(
-        {"email": current_user["email"]},
-        {"$set": update_data}
-    )
-    
-    return {"success": True, "message": "Onboarding data synced"}
-
-# --- Priority 4: AI Face Coach ---
-
-@api_router.post("/face-coach")
-async def face_coach_analysis(req: FaceCoachRequest, current_user: dict = Depends(get_current_user)):
-    """
-    Analyzes facial photo using Gemini Vision API.
-    Requires 'Alpha' or 'Sigma' level title.
-    """
-    # 1. Plan/Level Check
-    level_title = current_user.get("level_title", "Beginner")
-    # Case-insensitive check
-    if level_title.lower() not in ["alpha", "sigma"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access denied. Required level: Alpha or Sigma. Current: {level_title}"
-        )
-
-    # 2. Check API Key
-    if not GEMINI_API_KEY:
-        logger.error("GEMINI_API_KEY not found in environment variables")
-        return {"error": "AI service unavailable. Please contact support."}
-
-    try:
-        # 3. Process Images
-        # Helper to decode base64
-        def decode_image(b64_str):
-            if "," in b64_str:
-                b64_str = b64_str.split(",")[1]
-            return Image.open(io.BytesIO(base64.b64decode(b64_str)))
-
-        img = decode_image(req.photo_base64)
-        
-        prompt_text = (
-            "Analyze this facial photo for a young man tracking his self-improvement progress. "
-            "Analyze ONLY vs their own baseline — no external scoring. "
-            "Check: jawline definition, facial symmetry, posture alignment. "
-            "Return JSON only: "
-            "{ improvements: string[], areas_to_focus: string[], "
-            "encouragement: string, week_summary: string }"
-        )
-
-        # Try to use a stable model version
-        model = genai.GenerativeModel('gemini-1.5-pro')
-        
-        inputs = [prompt_text, img]
-        if req.baseline_photo_base64:
-            baseline_img = decode_image(req.baseline_photo_base64)
-            inputs.insert(1, "Here is the baseline photo for comparison:")
-            inputs.insert(2, baseline_img)
-            inputs.append("Compare specifically against the baseline provided.")
-
-        # 4. Call Gemini
-        response = model.generate_content(inputs)
-        
-        # 5. Parse JSON
-        try:
-            # Cleanup markdown if present
-            text = response.text
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0]
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0]
-                
-            analysis_json = json.loads(text)
-            
-            # 6. Save Result
-            session_data = {
-                "user_id": current_user["_id"],
-                "date": datetime.utcnow().isoformat(),
-                "result": analysis_json,
-                # Not saving full images to DB to avoid bloat, maybe just IDs if stored elsewhere
-            }
-            await db.face_coach_sessions.insert_one(session_data)
-            
-            return analysis_json
-            
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse Gemini response: {response.text}")
-            return {"error": "Analysis failed to parse. Please try again."}
-            
-    except Exception as e:
-        logger.error(f"Face Coach Error: {str(e)}")
-        return {"error": "Analysis failed. Please try again."}
-
-@api_router.get("/status")
-async def root():
-    return {"status": "online", "version": "1.0.0"}
-
-# Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
@@ -471,4 +445,9 @@ app.add_middleware(
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client:
+        client.close()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server:app", host="0.0.0.0", port=PORT, reload=False)

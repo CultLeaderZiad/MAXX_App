@@ -1,23 +1,124 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { FONTS, SPACING } from '../../src/constants/theme';
+import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
+import { BlurView } from 'expo-blur';
+import { XPToast } from '../../src/components/XPToast';
+import { formatDistanceToNow } from 'date-fns';
 
 const TABS = ['Audit', 'Dating IQ', 'Brotherhood'];
 const PLATFORMS = ['Instagram', 'TikTok', 'Twitter', 'LinkedIn', 'Tinder'];
+const TAGS = ['Win', 'Milestone', 'Advice', 'Question'];
 
 export default function SocialScreen() {
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [activeTab, setActiveTab] = useState('Brotherhood');
   const [activePlatform, setActivePlatform] = useState('Instagram');
   const [aiEngine, setAiEngine] = useState('Claude');
+
+  // Brotherhood State
+  const [posts, setPosts] = useState<any[]>([]);
+  const [showCompose, setShowCompose] = useState(false);
+  const [newPostText, setNewPostText] = useState('');
+  const [newPostTag, setNewPostTag] = useState('Win');
+  const [newPostImage, setNewPostImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [toastVis, setToastVis] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'Brotherhood') {
+      fetchPosts();
+      const channel = supabase
+        .channel('community_posts')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'community_posts' }, (payload) => {
+          fetchPosts(); // Refresh on new post
+        })
+        .subscribe();
+      return () => { supabase.removeChannel(channel); };
+    }
+  }, [activeTab]);
+
+  const fetchPosts = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('community_posts')
+        .select('*, profiles(username, avatar_url, plan)')
+        .order('created_at', { ascending: false });
+
+      if (data) setPosts(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [posting, setPosting] = useState(false);
+
+  const handlePost = async () => {
+      if (!newPostText.trim()) return;
+      setPosting(true);
+
+      let image_url = null;
+      if (newPostImage && user) {
+        try {
+          const filePath = `posts/${user.id}/${Date.now()}.jpg`;
+          const formData = new FormData();
+          // @ts-ignore
+          formData.append('file', { uri: newPostImage, name: 'post.jpg', type: 'image/jpeg' });
+          const { error: uploadError } = await supabase.storage.from('social').upload(filePath, formData as any);
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('social').getPublicUrl(filePath);
+            image_url = publicUrl;
+          }
+        } catch (e) { console.error('Image upload failed', e); }
+      }
+      
+      const newP = {
+          user_id: user?.id,
+          content: newPostText,
+          post_type: newPostTag,
+          image_url,
+          likes: 0
+      };
+
+      try {
+          const { error } = await supabase.from('community_posts').insert(newP);
+          if (!error) {
+              setNewPostText('');
+              setNewPostImage(null);
+              setShowCompose(false);
+              setToastVis(true);
+          }
+      } catch(e) { console.error(e); }
+      setPosting(false);
+  };
+
+  const pickPostImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.5,
+    });
+    if (!result.canceled) setNewPostImage(result.assets[0].uri);
+  };
+
+  const handleRespect = async (id: string, currentLikes: number) => {
+      // Optimistic
+      setPosts((prev: any[]) => prev.map((p: any) => p.id === id ? { ...p, likes: currentLikes + 1 } : p));
+      try {
+        await supabase.from('community_posts').update({ likes: currentLikes + 1 }).eq('id', id);
+      } catch(e) {}
+  };
 
   const AuditView = () => (
     <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
@@ -90,69 +191,56 @@ export default function SocialScreen() {
     </ScrollView>
   );
 
-  const BrotherhoodView = () => {
-    const [posts, setPosts] = useState([
-        { id: 1, user: 'Alpha_4921', tag: 'Win', tagCol: '#2ECC71', text: 'Day 30 NoFap complete. First time in 3 years. My focus is insane now. Keep going brothers.', likes: 24, time: '2 hours ago' },
-        { id: 2, user: 'Alpha_0072', tag: 'Milestone', tagCol: theme.gold, text: 'Level 2 jaw training unlocked. Jaw line starting to show after 2 weeks. The mewing actually works.', likes: 11, time: '5 hours ago' },
-    ]);
-
-    useEffect(() => {
-        // Subscribe to posts
-        const channel = supabase.channel('public:posts')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, payload => {
-                const newPost = payload.new;
-                setPosts(prev => [{
-                    id: newPost.id,
-                    user: 'Anon_User', 
-                    tag: newPost.type || 'Win',
-                    tagCol: theme.gold,
-                    text: newPost.content,
-                    likes: 0,
-                    time: 'Just now'
-                }, ...prev]);
-            })
-            .subscribe();
-            
-        return () => { supabase.removeChannel(channel); };
-    }, []);
-
-    return (
+  const BrotherhoodView = () => (
       <View style={styles.flex}>
         <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.subText, { color: theme.textMuted, fontFamily: FONTS.regular, fontStyle: 'italic', marginBottom: SPACING.md }]}>Wins only · Anonymous · No negativity</Text>
-          
-          {posts.map((post: any) => (
-            <View key={post.id} style={[styles.postCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-              <View style={styles.postHeader}>
-                <View style={styles.postUserRow}>
-                  <View style={[styles.postAvatar, { backgroundColor: theme.bgElevated }]}>
-                    <Feather name="user" size={14} color={theme.textMuted} />
+          {loading && posts.length === 0 ? <ActivityIndicator color={theme.gold} style={{ marginTop: 20 }} /> : null}
+          {posts.map((post: any) => {
+            const isAlpha = post.profiles?.plan === 'alpha';
+            return (
+              <View key={post.id} style={[styles.postCard, { backgroundColor: theme.bgSurface, borderColor: isAlpha ? theme.gold : theme.border, borderWidth: isAlpha ? 1.5 : 1 }]}>
+                <View style={styles.postHeader}>
+                  <View style={styles.postUserRow}>
+                    <View style={[styles.postAvatar, { backgroundColor: theme.bgElevated }]}>
+                      {post.profiles?.avatar_url ? (
+                        <Image source={{ uri: post.profiles.avatar_url }} style={{ width: '100%', height: '100%', borderRadius: 16 }} />
+                      ) : (
+                        <Feather name="user" size={14} color={theme.textMuted} />
+                      )}
+                    </View>
+                    <Text style={[styles.postUser, { color: isAlpha ? theme.gold : theme.textSecondary, fontFamily: isAlpha ? FONTS.cinzelBold : FONTS.medium }]}>
+                      {post.profiles?.username || 'Brother'}
+                    </Text>
+                    {isAlpha && <Feather name="award" size={14} color={theme.gold} />}
                   </View>
-                  <Text style={[styles.postUser, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>{post.user}</Text>
+                  <View style={[styles.tagPill, { backgroundColor: theme.gold + '22' }]}>
+                    <Text style={[styles.tagText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>{post.post_type || 'Win'}</Text>
+                  </View>
                 </View>
-                <View style={[styles.tagPill, { backgroundColor: (post.tagCol || theme.gold) + '22' }]}>
-                  <Text style={[styles.tagText, { color: post.tagCol || theme.gold, fontFamily: FONTS.semiBold }]}>{post.tag}</Text>
+                <Text style={[styles.postText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{post.content}</Text>
+                {post.image_url && (
+                  <Image source={{ uri: post.image_url }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 12 }} />
+                )}
+                <View style={styles.postFooter}>
+                  <Text style={[styles.postTime, { color: theme.textMuted }]}>
+                    {post.created_at ? formatDistanceToNow(new Date(post.created_at)) + ' ago' : 'Recently'}
+                  </Text>
+                  <View style={styles.postActions}>
+                    <TouchableOpacity onPress={() => handleRespect(post.id, post.likes)} style={[styles.likeBtn, { backgroundColor: theme.bgElevated }]}>
+                       <Feather name="star" size={12} color={theme.gold} />
+                       <Text style={[styles.likeText, { color: theme.textSecondary }]}>RESPECT • {post.likes || 0}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-              <Text style={[styles.postText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{post.text}</Text>
-              <View style={styles.postFooter}>
-                <Text style={[styles.postTime, { color: theme.textMuted }]}>{post.time}</Text>
-                <View style={styles.postActions}>
-                  <TouchableOpacity style={[styles.likeBtn, { backgroundColor: theme.bgElevated }]}>
-                     <Feather name="thumbs-up" size={12} color={theme.gold} />
-                     <Text style={[styles.likeText, { color: theme.textSecondary }]}>{post.likes}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
-        <TouchableOpacity style={[styles.fab, { backgroundColor: theme.gold }]}>
-          <Feather name="plus" size={24} color="#0A0A0A" />
+        <TouchableOpacity onPress={() => setShowCompose(true)} style={[styles.fab, { backgroundColor: theme.gold }]}>
+          <Feather name="edit-2" size={24} color="#0A0A0A" />
         </TouchableOpacity>
       </View>
-    );
-  };
+  );
 
   const DatingIQView = () => {
       const lessons = [
@@ -166,7 +254,7 @@ export default function SocialScreen() {
         <ScrollView contentContainerStyle={styles.tabContent}>
             {lessons.map(l => (
                 <TouchableOpacity key={l.id}>
-                    <Card style={[styles.lessonCard, { opacity: l.locked ? 0.6 : 1 }]}>
+                    <Card style={StyleSheet.flatten([styles.lessonCard, { opacity: l.locked ? 0.6 : 1 }])}>
                         <View style={styles.lessonLeft}>
                             <Text style={[styles.lessonNum, { color: theme.textMuted, fontFamily: FONTS.cinzelBold }]}>{l.number}</Text>
                             <View>
@@ -184,6 +272,8 @@ export default function SocialScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="social-screen">
+      <XPToast visible={toastVis} amount={10} onDone={() => setToastVis(false)} />
+      
       <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>
         {activeTab}
       </Text>
@@ -205,6 +295,58 @@ export default function SocialScreen() {
         {activeTab === 'Brotherhood' && <BrotherhoodView />}
         {activeTab === 'Dating IQ' && <DatingIQView />}
       </View>
+
+      {/* Compose Post Modal */}
+      <Modal visible={showCompose} transparent animationType="fade">
+          <BlurView intensity={80} tint="dark" style={styles.modalBg}>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyWrap}>
+                 <View style={[styles.composeCard, { backgroundColor: theme.bgPrimary, borderColor: theme.border }]}>
+                     <View style={styles.composeHeader}>
+                         <Text style={[styles.composeTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Broadcast</Text>
+                         <TouchableOpacity onPress={() => setShowCompose(false)}>
+                             <Feather name="x" size={24} color={theme.textMuted} />
+                         </TouchableOpacity>
+                     </View>
+                     
+                     <TextInput 
+                        style={[styles.composeInput, { color: theme.textPrimary, fontFamily: FONTS.regular, backgroundColor: theme.bgSurface, borderColor: theme.border }]}
+                        placeholder="Share a win or milestone..."
+                        placeholderTextColor={theme.textMuted}
+                        multiline
+                        autoFocus
+                        value={newPostText}
+                        onChangeText={setNewPostText}
+                     />
+                                          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 20 }}>
+                        <TouchableOpacity onPress={pickPostImage} style={{ width: 60, height: 60, borderRadius: 12, backgroundColor: theme.bgSurface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border }}>
+                          {newPostImage ? (
+                            <Image source={{ uri: newPostImage }} style={{ width: '100%', height: '100%', borderRadius: 11 }} />
+                          ) : (
+                            <Feather name="image" size={20} color={theme.gold} />
+                          )}
+                        </TouchableOpacity>
+                        <View style={styles.composeTags}>
+                          {TAGS.map(t => (
+                              <TouchableOpacity 
+                                 key={t} 
+                                 onPress={() => setNewPostTag(t)}
+                                 style={[styles.cTag, { 
+                                      backgroundColor: newPostTag === t ? theme.gold + '33' : theme.bgElevated,
+                                      borderColor: newPostTag === t ? theme.gold : 'transparent',
+                                      borderWidth: 1
+                                 }]}
+                              >
+                                  <Text style={{ color: newPostTag === t ? theme.gold : theme.textMuted, fontSize: 11, fontFamily: FONTS.semiBold }}>{t}</Text>
+                              </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      <Button title={posting ? "BROADCASTING..." : "POST TO BROTHERHOOD"} disabled={posting} onPress={handlePost} style={{ marginTop: SPACING.md }} />
+                 </View>
+              </KeyboardAvoidingView>
+          </BlurView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -248,12 +390,12 @@ const styles = StyleSheet.create({
   postUser: { fontSize: 14 },
   tagPill: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 },
   tagText: { fontSize: 10, textTransform: 'uppercase' },
-  postText: { fontSize: 14, lineHeight: 22, marginBottom: SPACING.md },
+  postText: { fontSize: 14, lineHeight: 22, marginVertical: SPACING.sm },
   postFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   postTime: { fontSize: 11 },
   postActions: { flexDirection: 'row', gap: 12 },
   likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10 },
-  likeText: { fontSize: 12 },
+  likeText: { fontSize: 12, letterSpacing: 0.5 },
   fab: { position: 'absolute', bottom: 30, right: 30, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 5 },
   
   // Dating IQ
@@ -262,4 +404,14 @@ const styles = StyleSheet.create({
   lessonNum: { fontSize: 18, width: 30 },
   lessonTitle: { fontSize: 15 },
   lessonTime: { fontSize: 12, marginTop: 2 },
+
+  // Modal Compose
+  modalBg: { flex: 1, justifyContent: 'flex-end' },
+  modalKeyWrap: { flex: 1, justifyContent: 'flex-end' },
+  composeCard: { padding: SPACING.xl, paddingBottom: 40, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0 },
+  composeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
+  composeTitle: { fontSize: 20 },
+  composeInput: { height: 100, borderRadius: 12, borderWidth: 1, padding: SPACING.md, textAlignVertical: 'top', marginBottom: SPACING.md },
+  composeTags: { flexDirection: 'row', gap: 8, marginBottom: SPACING.xl, flexWrap: 'wrap' },
+  cTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
 });

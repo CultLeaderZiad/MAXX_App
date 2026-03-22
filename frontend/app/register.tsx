@@ -132,13 +132,13 @@ export default function RegisterWizard() {
       const dobStr = dob.toISOString().split('T')[0];
       const finalPhone = formattedPhone || phoneNumber; // Use formatted if available
 
-      const res = await signUp(email, password, fullName, finalPhone, dobStr);
+      const res = await signUp(email, password, fullName);
       
       if (res.error) {
-        if (res.error.message?.includes('already registered')) {
+        if (res.error.includes('already registered')) {
             setError('This email is taken. Sign in instead?');
         } else {
-            setError(res.error.message || 'Registration failed');
+            setError(res.error || 'Registration failed');
         }
       } else {
         // Success -> OTP or Home

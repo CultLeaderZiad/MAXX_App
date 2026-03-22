@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
@@ -12,6 +13,7 @@ export default function WeakSpotsScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
+  const { goals } = useLocalSearchParams();
 
   const toggle = (key: string) => {
     setSelected((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
@@ -52,7 +54,15 @@ export default function WeakSpotsScreen() {
         })}
       </ScrollView>
       <View style={styles.bottom}>
-        <Button title="CONTINUE" onPress={() => router.push('/stats')} disabled={selected.length === 0} testID="weakspots-continue-btn" />
+        <Button 
+          title="CONTINUE" 
+          onPress={async () => {
+            await AsyncStorage.setItem('onboarding_weak_spots', JSON.stringify(selected));
+            router.push({ pathname: '/stats', params: { goals, weak_spots: JSON.stringify(selected) } });
+          }} 
+          disabled={selected.length === 0} 
+          testID="weakspots-continue-btn" 
+        />
       </View>
     </SafeAreaView>
   );

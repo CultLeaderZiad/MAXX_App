@@ -43,7 +43,7 @@ export default function FocusScreen() {
         <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>MENTOR PROFILES</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mentorScroll}>
             {mentors.map(m => (
-                <TouchableOpacity key={m.id} style={[styles.mentorCard, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}>
+                <TouchableOpacity key={m.id} style={StyleSheet.flatten([styles.mentorCard, { backgroundColor: theme.bgElevated, borderColor: theme.border }])}>
                     <View style={[styles.mentorAvatar, { backgroundColor: theme.bgSurface }]}>
                         <Text style={{ fontSize: 24 }}>{m.avatar}</Text>
                     </View>
@@ -108,11 +108,11 @@ export default function FocusScreen() {
                     { id: 3, title: 'Salary Negotiation', diff: 'Medium', desc: 'Get what you are worth.', locked: true },
                 ].map(s => (
                     <TouchableOpacity key={s.id} onPress={() => !s.locked && setSession(true)} disabled={s.locked}>
-                        <Card style={[styles.scenarioCard, { opacity: s.locked ? 0.6 : 1 }]}>
+                        <Card style={[styles.scenarioCard, { opacity: s.locked ? 0.6 : 1 }] as any}>
                             <View>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                     <Text style={[styles.scenTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{s.title}</Text>
-                                    <Badge label={s.diff} variant={s.diff === 'Hard' ? 'danger' : 'default'} />
+                                    <Badge label={s.diff} />
                                 </View>
                                 <Text style={[styles.scenDesc, { color: theme.textSecondary }]}>{s.desc}</Text>
                             </View>

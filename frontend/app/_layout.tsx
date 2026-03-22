@@ -7,7 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { PlanProvider } from '../context/PlanContext';
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,19 +18,23 @@ function RootNav() {
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    if (loading) return
 
-    const inTabsGroup = segments[0] === '(tabs)';
+    const inAuthGroup = segments[0] === '(tabs)'
 
-    if (session && !inTabsGroup) {
-      router.replace('/(tabs)');
-    } else if (!session && inTabsGroup) {
-      router.replace('/');
+    if (!session && inAuthGroup) {
+      router.replace('/')
+    } else if (session && !inAuthGroup) {
+      router.replace('/(tabs)')
     }
-  }, [session, loading, segments]);
+  }, [session, loading])
 
   if (loading) {
-    return <View style={{ flex: 1, backgroundColor: theme.bgPrimary }} />;
+    return (
+      <View style={{ flex:1, backgroundColor:'#0A0A0A', justifyContent:'center', alignItems:'center' }}>
+        <ActivityIndicator size="large" color="#C8A96E" />
+      </View>
+    );
   }
 
   return (

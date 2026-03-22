@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -18,6 +19,30 @@ export default function StatsScreen() {
   const [activity, setActivity] = useState('Moderate');
   const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('cm');
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
+  const { goals, weak_spots } = require('expo-router').useLocalSearchParams();
+  const { api } = require('../src/services/api');
+
+  const handleContinue = async () => {
+    try {
+      const goalsData = await AsyncStorage.getItem('onboarding_goals');
+      const weakSpotsData = await AsyncStorage.getItem('onboarding_weak_spots');
+      
+      const payload = {
+        goals: JSON.parse(goalsData || '[]'),
+        weak_spots: JSON.parse(weakSpotsData || '[]'),
+        height_cm: heightUnit === 'cm' ? height : Math.round(height * 2.54),
+        weight_kg: weightUnit === 'kg' ? weight : Math.round(weight / 2.205),
+        sleep_hours: sleep,
+        activity_level: activity,
+      };
+
+      await api.post('/api/user/onboarding', payload);
+      router.push('/plans');
+    } catch(e: any) {
+      console.error(e);
+      Alert.alert('Save Failed', 'Failed to save, try again');
+    }
+  };
 
   const Slider = require('react-native').View; // Placeholder, using text input + buttons
 
@@ -128,7 +153,7 @@ export default function StatsScreen() {
         </View>
       </ScrollView>
       <View style={styles.bottom}>
-        <Button title="CONTINUE" onPress={() => router.push('/plans')} testID="stats-continue-btn" />
+        <Button title="CONTINUE" onPress={handleContinue} testID="stats-continue-btn" />
       </View>
     </SafeAreaView>
   );

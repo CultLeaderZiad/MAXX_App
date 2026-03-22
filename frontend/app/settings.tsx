@@ -3,10 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useTheme } from '../../src/context/ThemeContext';
-import { useAuth } from '../../src/context/AuthContext';
-import { Button } from '../../src/components/Button';
-import { FONTS, SPACING } from '../../src/constants/theme';
+import { useTheme } from '../src/context/ThemeContext';
+import { useAuth } from '../src/context/AuthContext';
+import { Button } from '../src/components/Button';
+import { FONTS, SPACING } from '../src/constants/theme';
 
 export default function SettingsScreen() {
   const { theme, toggleTheme, mode } = useTheme();
@@ -82,7 +82,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Section title="ACCOUNT">
           <Item label="Edit Profile" onPress={() => router.push('/settings/edit-profile')} />
-          <Item label="Change Password" onPress={() => Alert.alert('Coming Soon', 'Password change modal')} />
+          <Item label="Change Password" onPress={() => router.push('/settings/change-password')} />
           <Item label="Delete Account" value="30-day grace period" color="#E74C3C" onPress={handleDeleteAccount} icon={null} />
         </Section>
 

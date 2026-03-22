@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -85,7 +86,10 @@ export default function GoalsScreen() {
       <View style={styles.bottom}>
         <Button
           title="CONTINUE"
-          onPress={() => router.push('/weakspots')}
+          onPress={async () => {
+            await AsyncStorage.setItem('onboarding_goals', JSON.stringify(selected));
+            router.push({ pathname: '/weakspots', params: { goals: JSON.stringify(selected) } });
+          }}
           disabled={selected.length === 0 || !agreed}
           testID="goals-continue-btn"
         />

@@ -1,80 +1,64 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { Feather, AntDesign } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
-import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
 import { Button } from '../src/components/Button';
+import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
 import { supabase } from '../lib/supabase';
-
-const METHODS = [
-  { id: 'card', label: 'Credit Card', icon: 'credit-card' },
-  { id: 'paypal', label: 'PayPal', icon: 'dollar-sign' },
-  { id: 'apple', label: 'Apple Pay', icon: 'smartphone' },
-];
+import { api } from '../src/services/api';
 
 export default function PaymentScreen() {
   const { theme } = useTheme();
-  const { user, refreshProfile } = useAuth();
+  const { user, fetchProfile } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ plan: string; price: string }>();
+  const { plan, price } = useLocalSearchParams();
   
-  const [method, setMethod] = useState('card');
+  const [loading, setLoading] = useState(false);
   const [cardNumber, setCardNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  const selectedPlan = params.plan || 'alpha';
-  const price = params.price || '$19.99';
-
-  const formatCardNumber = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    const groups = cleaned.match(/.{1,4}/g);
-    return groups ? groups.join(' ') : cleaned;
-  };
 
   const handlePay = async () => {
+    if (!cardNumber || !expiry || !cvv) {
+      Alert.alert('Error', 'Please fill all payment details');
+      return;
+    }
+
     setLoading(true);
-    // Mock Payment Delay
-    setTimeout(async () => {
-      setLoading(false);
-      setSuccess(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Update Supabase
+    try {
+      // 1. Mock payment delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 2. Update Supabase
       if (user) {
-        await supabase.from('profiles').update({ plan: selectedPlan }).eq('id', user.id);
-        await supabase.from('subscriptions').upsert({ 
-            user_id: user.id, 
-            plan: selectedPlan, 
-            status: 'trialing', 
-            trial_end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() 
-        });
-        await refreshProfile();
+        const { error } = await supabase
+          .from('profiles')
+          .update({ plan: (plan as string).toLowerCase() })
+          .eq('id', user.id);
+        
+        if (error) throw error;
       }
 
-      setTimeout(() => {
-        router.replace('/(tabs)');
-      }, 2500);
-    }, 2000);
-  };
+      // 3. Update MongoDB (optional, but keep in sync)
+      try {
+        await api.post('/api/user/update-plan', { plan });
+      } catch (e) {
+        console.warn('Sync to MongoDB failed', e);
+      }
 
-  if (success) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary, justifyContent: 'center', alignItems: 'center' }]}>
-        <View style={[styles.successCircle, { backgroundColor: theme.gold }]}>
-          <Feather name="check" size={48} color="#000" />
-        </View>
-        <Text style={[styles.successTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>TRIAL STARTED</Text>
-        <Text style={[styles.successSub, { color: theme.textMuted }]}>Welcome to the elite.</Text>
-      </SafeAreaView>
-    );
-  }
+      await fetchProfile();
+      Alert.alert('Welcome to Alpha', 'Your plan has been upgraded successfully.', [
+        { text: 'START TRAINING', onPress: () => router.replace('/(tabs)/train') }
+      ]);
+    } catch (e: any) {
+      Alert.alert('Payment Failed', e.message || 'Transaction could not be completed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
@@ -82,100 +66,74 @@ export default function PaymentScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.gold} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Checkout</Text>
-        <View style={{ width: 44 }} />
+        <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Checkout</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.summaryCard, { backgroundColor: theme.bgSurface, borderColor: theme.gold }]}>
-          <View>
-            <Text style={[styles.planLabel, { color: theme.textMuted }]}>SELECTED PLAN</Text>
-            <Text style={[styles.planName, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>{selectedPlan.toUpperCase()}</Text>
+        <View style={[styles.summaryCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+          <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>Selected Plan</Text>
+          <View style={styles.summaryRow}>
+            <Text style={[styles.planName, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>{plan?.toString().toUpperCase()}</Text>
+            <Text style={[styles.planPrice, { color: theme.gold, fontFamily: FONTS.bold }]}>{price || '$19.99'}</Text>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.price, { color: theme.gold, fontFamily: FONTS.bold }]}>{price}</Text>
-            <Text style={[styles.trialBadge, { color: theme.green }]}>7 Days Free</Text>
+          <Text style={[styles.trialText, { color: theme.gold, fontSize: 11 }]}>7-DAY FREE TRIAL · THEN {price}/MONTH</Text>
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Credit Card</Text>
+        <View style={styles.inputGroup}>
+          <TextInput
+            style={[styles.input, { backgroundColor: theme.bgSurface, color: theme.textPrimary, borderColor: theme.border }]}
+            placeholder="Card Number"
+            placeholderTextColor={theme.textMuted}
+            keyboardType="numeric"
+            value={cardNumber}
+            onChangeText={setCardNumber}
+          />
+          <View style={{ flexDirection: 'row', gap: SPACING.md }}>
+            <TextInput
+              style={[styles.input, { flex: 1, backgroundColor: theme.bgSurface, color: theme.textPrimary, borderColor: theme.border }]}
+              placeholder="MM/YY"
+              placeholderTextColor={theme.textMuted}
+              value={expiry}
+              onChangeText={setExpiry}
+            />
+            <TextInput
+              style={[styles.input, { flex: 1, backgroundColor: theme.bgSurface, color: theme.textPrimary, borderColor: theme.border }]}
+              placeholder="CVV"
+              placeholderTextColor={theme.textMuted}
+              secureTextEntry
+              maxLength={3}
+              value={cvv}
+              onChangeText={setCvv}
+            />
           </View>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>PAYMENT METHOD</Text>
-        <View style={styles.methodsRow}>
-          {METHODS.map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              onPress={() => setMethod(m.id)}
-              style={[
-                styles.methodBtn,
-                {
-                  backgroundColor: theme.bgSurface,
-                  borderColor: method === m.id ? theme.gold : theme.border,
-                  opacity: method === m.id ? 1 : 0.6
-                }
-              ]}
-            >
-              <Feather name={m.icon as any} size={20} color={method === m.id ? theme.gold : theme.textMuted} />
-              <Text style={[styles.methodLabel, { color: method === m.id ? theme.textPrimary : theme.textMuted }]}>{m.label}</Text>
+        <View style={styles.divider}>
+          <View style={[styles.line, { backgroundColor: theme.border }]} />
+          <Text style={[styles.dividerText, { color: theme.textMuted }]}>OR PAY WITH</Text>
+          <View style={[styles.line, { backgroundColor: theme.border }]} />
+        </View>
+
+        <View style={{ gap: SPACING.md }}>
+            <TouchableOpacity style={[styles.payBtn, { backgroundColor: '#FFFFFF' }]} onPress={handlePay}>
+                <Image source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/b/b5/Google_Pay_%28GPay%29_Logo_%282020%29.svg' }} style={{ width: 60, height: 24 }} resizeMode="contain" />
             </TouchableOpacity>
-          ))}
+            <TouchableOpacity style={[styles.payBtn, { backgroundColor: '#000000', borderColor: '#333', borderWidth: 1 }]} onPress={handlePay}>
+                <AntDesign name="apple" size={20} color="#FFF" />
+                <Text style={{ color: '#FFF', fontSize: 18, fontFamily: FONTS.semiBold, marginLeft: 8 }}>Pay</Text>
+            </TouchableOpacity>
         </View>
 
-        {method === 'card' && (
-          <View style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>CARD NUMBER</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput, borderColor: theme.border }]}>
-                <Feather name="credit-card" size={18} color={theme.textMuted} />
-                <TextInput
-                  style={[styles.input, { color: theme.textPrimary }]}
-                  placeholder="0000 0000 0000 0000"
-                  placeholderTextColor={theme.textMuted}
-                  keyboardType="number-pad"
-                  maxLength={19}
-                  value={cardNumber}
-                  onChangeText={(t) => setCardNumber(formatCardNumber(t))}
-                />
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>EXPIRY</Text>
-                <TextInput
-                  style={[styles.inputBox, { backgroundColor: theme.bgInput, borderColor: theme.border, color: theme.textPrimary }]}
-                  placeholder="MM/YY"
-                  placeholderTextColor={theme.textMuted}
-                  maxLength={5}
-                  value={expiry}
-                  onChangeText={setExpiry}
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>CVV</Text>
-                <TextInput
-                  style={[styles.inputBox, { backgroundColor: theme.bgInput, borderColor: theme.border, color: theme.textPrimary }]}
-                  placeholder="123"
-                  placeholderTextColor={theme.textMuted}
-                  maxLength={4}
-                  keyboardType="number-pad"
-                  value={cvv}
-                  onChangeText={setCvv}
-                />
-              </View>
-            </View>
-          </View>
-        )}
-
-        <View style={styles.footer}>
-          <Button 
-            title={`START FREE TRIAL • ${price}/mo`} 
+        <Button 
+            title={loading ? "PROCESSING..." : `START ${plan?.toString().toUpperCase()} TRIAL`} 
             onPress={handlePay} 
             loading={loading}
-            disabled={method === 'card' && cardNumber.length < 16}
-          />
-          <Text style={[styles.disclaimer, { color: theme.textMuted }]}>
-            You won't be charged until the trial ends. Cancel anytime in settings.
-          </Text>
-        </View>
+            style={{ marginTop: SPACING.xl }}
+        />
+        <Text style={[styles.legal, { color: theme.textMuted }]}>
+          By clicking Start Trial, you agree to our Terms of Service. Your subscription will renew automatically.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -183,29 +141,22 @@ export default function PaymentScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
-  backBtn: { width: 44, height: 44, justifyContent: 'center' },
-  headerTitle: { fontSize: 18 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, gap: SPACING.sm },
+  backBtn: { padding: 8 },
+  title: { fontSize: 20 },
   content: { padding: SPACING.lg },
-  summaryCard: { padding: SPACING.lg, borderRadius: RADIUS.lg, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xl },
-  planLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 4 },
-  planName: { fontSize: 20 },
-  price: { fontSize: 18 },
-  trialBadge: { fontSize: 12, marginTop: 2 },
-  sectionTitle: { fontSize: 11, letterSpacing: 1, marginBottom: SPACING.md },
-  methodsRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.xl },
-  methodBtn: { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center', gap: 8 },
-  methodLabel: { fontSize: 11 },
-  form: { gap: SPACING.lg },
-  inputGroup: {},
-  label: { fontSize: 11, letterSpacing: 1, marginBottom: 8, fontFamily: FONTS.medium },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', height: 50, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, gap: 12 },
-  input: { flex: 1, fontSize: 16, fontFamily: FONTS.regular },
-  row: { flexDirection: 'row', gap: SPACING.md },
-  inputBox: { height: 50, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, fontSize: 16, fontFamily: FONTS.regular },
-  footer: { marginTop: SPACING.xxl },
-  disclaimer: { fontSize: 11, textAlign: 'center', marginTop: SPACING.md, lineHeight: 16 },
-  successCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.lg },
-  successTitle: { fontSize: 24, marginBottom: 8 },
-  successSub: { fontSize: 16 },
+  summaryCard: { padding: SPACING.lg, borderRadius: 16, borderWidth: 1, marginBottom: SPACING.xl },
+  summaryLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 4 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  planName: { fontSize: 24 },
+  planPrice: { fontSize: 24 },
+  trialText: { marginTop: 8 },
+  sectionTitle: { fontSize: 13, marginBottom: SPACING.md, fontFamily: FONTS.semiBold },
+  inputGroup: { gap: SPACING.md, marginBottom: SPACING.xl },
+  input: { height: 54, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, fontSize: 16 },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: SPACING.xl },
+  line: { flex: 1, height: 1 },
+  dividerText: { fontSize: 10, letterSpacing: 1 },
+  payBtn: { height: 54, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  legal: { fontSize: 11, textAlign: 'center', marginTop: SPACING.lg, lineHeight: 16 },
 });

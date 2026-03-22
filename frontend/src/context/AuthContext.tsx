@@ -1,180 +1,188 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '../services/api';
+import { View, Text, StyleSheet } from 'react-native';
+import { useRouter, useSegments } from 'expo-router';
+import { supabase } from '../../lib/supabase';
+import { Session, User } from '@supabase/supabase-js';
 
-interface User {
+// Polyfill for url if missing
+import 'react-native-url-polyfill/auto';
+
+interface Profile {
   id: string;
-  email: string;
-  full_name: string;
-  date_of_birth?: string;
+  role?: string;
+  full_name?: string;
+  avatar_url?: string;
+  [key: string]: any;
 }
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
+  profile: Profile | null;
+  session: Session | null;
   loading: boolean;
-  isOnboarded: boolean;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, fullName: string, dob: string) => Promise<{ success: boolean; error?: string; requiresOtp?: boolean }>;
-  verifyOtp: (code: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (email: string, token: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
-  completeOnboarding: () => Promise<void>;
-  updateUser: (data: Partial<User>) => void;
+  fetchProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  token: null,
+  profile: null,
+  session: null,
   loading: true,
-  isOnboarded: false,
+  isAdmin: false,
   signIn: async () => ({ success: false }),
   signUp: async () => ({ success: false }),
   verifyOtp: async () => ({ success: false }),
   signOut: async () => {},
-  completeOnboarding: async () => {},
-  updateUser: () => {},
+  fetchProfile: async () => {},
 });
-
-const TOKEN_KEY = 'maxx_token';
-const REFRESH_KEY = 'maxx_refresh';
-const USER_KEY = 'maxx_user';
-const ONBOARDED_KEY = 'maxx_onboarded';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isOnboarded, setIsOnboarded] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState('');
+  const router = useRouter();
+  const segments = useSegments();
 
-  useEffect(() => {
-    loadStoredAuth();
+  const fetchProfile = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (!error && data) {
+        setProfile(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
 
-  const loadStoredAuth = async () => {
-    try {
-      const [storedToken, storedUser, onboarded] = await Promise.all([
-        AsyncStorage.getItem(TOKEN_KEY),
-        AsyncStorage.getItem(USER_KEY),
-        AsyncStorage.getItem(ONBOARDED_KEY),
-      ]);
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        api.setToken(storedToken);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        fetchProfile(session.user.id).then(() => setLoading(false))
+      } else {
+        setLoading(false)
       }
-      setIsOnboarded(onboarded === 'true');
-    } catch {
-      // Fail silently on storage read
-    } finally {
-      setLoading(false);
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session)
+      setUser(session?.user ?? null)
+      
+      if (session?.user) {
+        await fetchProfile(session.user.id)
+      }
+      setLoading(false)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [fetchProfile])
+
+  const signUp = async (email: string, password: string, fullName: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      });
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
     }
   };
 
-  const signUp = useCallback(async (email: string, password: string, fullName: string, dob: string) => {
+  const signIn = async (email: string, password: string) => {
     try {
-      const res = await api.post('/api/auth/register', {
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        full_name: fullName,
-        date_of_birth: dob,
       });
-      if (res?.success) {
-        setPendingEmail(email);
-        return { success: true, requiresOtp: true };
-      }
-      return { success: false, error: res?.error || 'Registration failed' };
+      if (error) return { success: false, error: error.message };
+      return { success: true };
     } catch (e: any) {
-      return { success: false, error: e?.message || 'Network error' };
+      return { success: false, error: e.message };
     }
-  }, []);
+  };
 
-  const verifyOtp = useCallback(async (code: string) => {
+  const verifyOtp = async (email: string, token: string) => {
     try {
-      const res = await api.post('/api/auth/verify-otp', {
-        email: pendingEmail,
-        code,
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email',
       });
-      if (res?.access_token) {
-        const userData = res.user;
-        setToken(res.access_token);
-        setUser(userData);
-        api.setToken(res.access_token);
-        await Promise.all([
-          AsyncStorage.setItem(TOKEN_KEY, res.access_token),
-          AsyncStorage.setItem(REFRESH_KEY, res.refresh_token || ''),
-          AsyncStorage.setItem(USER_KEY, JSON.stringify(userData)),
-        ]);
-        return { success: true };
-      }
-      return { success: false, error: res?.error || 'Invalid code' };
+      if (error) return { success: false, error: error.message };
+      return { success: true };
     } catch (e: any) {
-      return { success: false, error: e?.message || 'Verification failed' };
+      return { success: false, error: e.message };
     }
-  }, [pendingEmail]);
+  };
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    try {
-      const res = await api.post('/api/auth/login', { email, password });
-      if (res?.access_token) {
-        const userData = res.user;
-        setToken(res.access_token);
-        setUser(userData);
-        api.setToken(res.access_token);
-        await Promise.all([
-          AsyncStorage.setItem(TOKEN_KEY, res.access_token),
-          AsyncStorage.setItem(REFRESH_KEY, res.refresh_token || ''),
-          AsyncStorage.setItem(USER_KEY, JSON.stringify(userData)),
-        ]);
-        const onboarded = await AsyncStorage.getItem(ONBOARDED_KEY);
-        setIsOnboarded(onboarded === 'true');
-        return { success: true };
-      }
-      return { success: false, error: res?.error || 'Login failed' };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'Network error' };
-    }
-  }, []);
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
 
-  const signOut = useCallback(async () => {
-    try {
-      setUser(null);
-      setToken(null);
-      api.setToken(null);
-      await Promise.all([
-        AsyncStorage.removeItem(TOKEN_KEY),
-        AsyncStorage.removeItem(REFRESH_KEY),
-        AsyncStorage.removeItem(USER_KEY),
-      ]);
-    } catch {
-      // Fail silently
-    }
-  }, []);
+  const isAdmin = profile?.role === 'admin';
 
-  const completeOnboarding = useCallback(async () => {
-    try {
-      setIsOnboarded(true);
-      await AsyncStorage.setItem(ONBOARDED_KEY, 'true');
-    } catch {
-      // Fail silently
-    }
-  }, []);
-
-  const updateUser = useCallback((data: Partial<User>) => {
-    setUser((prev) => {
-      if (!prev) return prev;
-      const updated = { ...prev, ...data };
-      AsyncStorage.setItem(USER_KEY, JSON.stringify(updated)).catch(() => {});
-      return updated;
-    });
-  }, []);
+  if (loading) {
+    return (
+      <View style={styles.splashContainer}>
+        <Text style={styles.splashText}>MAXX</Text>
+      </View>
+    );
+  }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, isOnboarded, signIn, signUp, verifyOtp, signOut, completeOnboarding, updateUser }}>
+    <AuthContext.Provider value={{
+      user,
+      profile,
+      session,
+      loading,
+      isAdmin,
+      signIn,
+      signUp,
+      verifyOtp,
+      signOut,
+      fetchProfile: async () => {
+        if (user?.id) await fetchProfile(user.id);
+      }
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
-export default AuthContext;
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#0A0A0A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  splashText: {
+    color: '#C8A96E',
+    fontSize: 48,
+    fontFamily: 'Cinzel_700Bold',
+    letterSpacing: 4,
+  },
+});

@@ -31,7 +31,7 @@ export default function LoginScreen() {
     try {
       const res = await signIn(email, password);
       if (res.error) {
-        setError(res.error.message || 'Login failed');
+        setError(res.error || 'Login failed');
       } else {
         // Success handled by AuthContext listener -> redirects to (tabs)
         // But we can also force it if needed, though listener is better.

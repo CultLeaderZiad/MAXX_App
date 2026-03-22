@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
 import { Button } from '../src/components/Button';
@@ -39,13 +41,21 @@ export default function ExerciseScreen() {
   const [completed, setCompleted] = useState(false);
   const [showXP, setShowXP] = useState(false);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progress = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (isRunning && timeLeft > 0) {
-      timerRef.current = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      timerRef.current = setTimeout(() => {
+        setTimeLeft(timeLeft - 1);
+        if (timeLeft <= 3) {
+           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        } else {
+           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      }, 1000);
     } else if (isRunning && timeLeft === 0) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (isResting) {
         setIsResting(false);
         if (currentSet < totalSets) {
@@ -71,6 +81,7 @@ export default function ExerciseScreen() {
     setCompleted(true);
     setIsRunning(false);
     setShowXP(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     // Log completion to Supabase
     if (user && params.id) {
@@ -102,6 +113,7 @@ export default function ExerciseScreen() {
   const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
   const handleReset = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCurrentSet(1);
     setTimeLeft(holdTime);
     setIsRunning(false);
@@ -110,7 +122,9 @@ export default function ExerciseScreen() {
   }, [holdTime]);
 
   const ringSize = 240;
-  const circumference = ringSize * Math.PI; // Approximation for rendering logic, handled by styling
+  const strokeWidth = 10;
+  const radius = (ringSize - strokeWidth) / 2;
+  const strokeDasharray = 2 * Math.PI * radius;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="exercise-screen">
@@ -131,13 +145,29 @@ export default function ExerciseScreen() {
         
         {/* Timer Ring */}
         <View style={styles.timerWrap}>
-          <View style={[styles.timerRing, { borderColor: theme.bgElevated, width: ringSize, height: ringSize, borderRadius: ringSize/2 }]}>
-            <Animated.View style={[styles.timerFill, {
-              width: ringSize, height: ringSize, borderRadius: ringSize/2,
-              borderColor: theme.gold,
-              borderTopColor: isResting ? theme.blue : theme.gold,
-              transform: [{ rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ['-180deg', '180deg'] }) }],
-            }]} />
+          <View style={{ width: ringSize, height: ringSize, alignItems: 'center', justifyContent: 'center' }}>
+            <Svg width={ringSize} height={ringSize} style={{ position: 'absolute' }}>
+              <Circle
+                cx={ringSize/2}
+                cy={ringSize/2}
+                r={radius}
+                stroke={theme.bgElevated}
+                strokeWidth={strokeWidth}
+                fill="none"
+              />
+              <Circle
+                cx={ringSize/2}
+                cy={ringSize/2}
+                r={radius}
+                stroke={isResting ? '#3498DB' : theme.gold}
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeDasharray={strokeDasharray}
+                strokeDashoffset={strokeDasharray * (1 - timeLeft / (isResting ? restTime : holdTime))}
+                strokeLinecap="round"
+                transform={`rotate(-90 ${ringSize/2} ${ringSize/2})`}
+              />
+            </Svg>
             <View style={styles.timerInner}>
               <Text style={[styles.timerText, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>{formatTime(timeLeft)}</Text>
               <View style={[styles.setPill, { backgroundColor: theme.bgElevated }]}>
@@ -159,9 +189,15 @@ export default function ExerciseScreen() {
         ) : (
           <View style={styles.controls}>
             {!isRunning ? (
-              <Button title={currentSet === 1 && timeLeft === holdTime ? 'START' : 'RESUME'} onPress={() => setIsRunning(true)} />
+              <Button title={currentSet === 1 && timeLeft === holdTime ? 'START' : 'RESUME'} onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setIsRunning(true);
+              }} />
             ) : (
-              <Button title="PAUSE" variant="secondary" onPress={() => setIsRunning(false)} />
+              <Button title="PAUSE" variant="secondary" onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setIsRunning(false);
+              }} />
             )}
             <Button title="RESET" variant="ghost" onPress={handleReset} />
           </View>
@@ -199,7 +235,7 @@ const styles = StyleSheet.create({
   timerWrap: { marginVertical: SPACING.lg },
   timerRing: { borderWidth: 8, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   timerFill: { position: 'absolute', borderWidth: 8, borderRightColor: 'transparent', borderBottomColor: 'transparent' },
-  timerInner: { alignItems: 'center', gap: 8 },
+  timerInner: { position: 'absolute', alignItems: 'center', gap: 8 },
   timerText: { fontSize: 48 },
   setPill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   setLabel: { fontSize: 12, letterSpacing: 1 },

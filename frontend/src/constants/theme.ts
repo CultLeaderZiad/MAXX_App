@@ -15,7 +15,7 @@ export const DARK_THEME = {
   orange: '#E67E22',
   blue: '#4A90D9',
   selectedBorder: 'rgba(200, 169, 110, 0.27)',
-  goldGradient: ['#8A6420', '#C8A96E', '#F0D090'] as const,
+  goldGradient: ['#8A6420', '#C8A96E', '#F0D090'] as readonly [string, string, string],
 };
 
 export const LIGHT_THEME = {
@@ -35,7 +35,7 @@ export const LIGHT_THEME = {
   orange: '#E67E22',
   blue: '#4A90D9',
   selectedBorder: 'rgba(184, 134, 11, 0.27)',
-  goldGradient: ['#8A6420', '#B8860B', '#D4A843'] as const,
+  goldGradient: ['#8A6420', '#B8860B', '#D4A843'] as readonly [string, string, string],
 };
 
 export type ThemeColors = typeof DARK_THEME;

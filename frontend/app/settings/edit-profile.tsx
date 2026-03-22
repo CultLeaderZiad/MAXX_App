@@ -11,7 +11,7 @@ import { supabase } from '../../lib/supabase';
 
 export default function EditProfileScreen() {
   const { theme } = useTheme();
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, fetchProfile } = useAuth();
   const router = useRouter();
   
   const [fullName, setFullName] = useState(profile?.full_name || '');
@@ -35,7 +35,7 @@ export default function EditProfileScreen() {
 
       if (error) throw error;
 
-      await refreshProfile();
+      await fetchProfile();
       Alert.alert('Success', 'Profile updated successfully');
       router.back();
     } catch (e: any) {

@@ -105,7 +105,7 @@ export default function OTPScreen() {
     if (otp.length !== 6) { setError('Enter all 6 digits'); shake(); return; }
     setLoading(true);
     try {
-      const res = await verifyOtp(otp);
+      const res = await verifyOtp(params.email as string, otp);
       if (res.success) {
         await promptBiometric();
       } else {

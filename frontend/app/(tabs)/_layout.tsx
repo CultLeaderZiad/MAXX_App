@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
 import { FONTS } from '../../src/constants/theme';
@@ -21,12 +21,17 @@ export default function TabLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.bgPrimary,
-          borderTopColor: theme.border,
+          backgroundColor: theme.bgSurface,
+          borderTopColor: theme.border + '44',
           borderTopWidth: 1,
-          height: 80,
-          paddingBottom: 16,
-          paddingTop: 8,
+          height: Platform.OS === 'android' ? 70 : 88,
+          paddingBottom: Platform.OS === 'android' ? 12 : 30,
+          paddingTop: 12,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          elevation: 0,
         },
         tabBarActiveTintColor: theme.gold,
         tabBarInactiveTintColor: theme.textMuted,
