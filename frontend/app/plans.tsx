@@ -44,81 +44,113 @@ export default function PlansScreen() {
         </View>
       </View>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Choose Your Path</Text>
-        <Text style={[styles.sub, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
-          All plans start with 7 days free
-        </Text>
+        <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold, textAlign: 'center' }]}>Choose Plan</Text>
 
-        {PLAN_OPTIONS.map((plan) => {
-          const isSel = selectedPlan === plan.key;
-          const isAlpha = plan.key === 'alpha';
+        {[
+          {
+            key: 'grind',
+            name: 'Grind',
+            price: '$9.99',
+            features: [
+              'Jaw & face training',
+              'Body programs + NoFap tracker',
+              'Daily wisdom drops',
+            ],
+            excluded: ['AI Face Coach'],
+            trial: '7 DAYS FREE',
+          },
+          {
+            key: 'alpha',
+            name: 'Alpha',
+            price: '$19.99',
+            features: [
+              'Everything in Grind',
+              'AI Face Coach (Claude + Gemini)',
+              'Profile audit + Brotherhood feed',
+              'Convo simulator (3/mo)',
+            ],
+            trial: '7 DAYS FREE',
+            popular: true,
+          },
+          {
+            key: 'sigma',
+            name: 'Sigma',
+            price: '$34.99',
+            features: [
+              'Everything unlocked',
+              'Unlimited convo simulator',
+            ],
+            trial: '7 DAYS FREE',
+          }
+        ].map((plan) => {
+          const isAlpha = plan.popular;
           return (
-            <TouchableOpacity
+            <View
               key={plan.key}
-              testID={`plan-${plan.key}`}
-              onPress={() => setSelectedPlan(plan.key)}
-              activeOpacity={0.8}
               style={[
                 styles.planCard,
                 {
                   backgroundColor: theme.bgSurface,
-                  borderColor: isSel ? theme.borderActive : theme.border,
+                  borderColor: isAlpha ? theme.gold : theme.border,
                   borderWidth: isAlpha ? 1.5 : 1,
+                  padding: SPACING.lg,
+                  borderRadius: 20,
+                  marginBottom: SPACING.md,
                 },
               ]}
             >
               <View style={styles.planHeader}>
-                <Text style={[styles.planName, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>{plan.name}</Text>
-                <View style={styles.planRight}>
-                  {plan.badge && (
-                    <View style={[styles.badge, { backgroundColor: theme.gold }]}>
-                      <Text style={[styles.badgeText, { fontFamily: FONTS.semiBold }]}>{plan.badge}</Text>
+                <Text style={[styles.planName, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold, fontSize: 24 }]}>{plan.name}</Text>
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <View style={{ backgroundColor: 'rgba(200,169,110,0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 0.5, borderColor: theme.gold }}>
+                       <Text style={{ color: theme.gold, fontSize: 10, fontFamily: FONTS.bold }}>{plan.trial}</Text>
                     </View>
-                  )}
-                  <View style={[styles.freePill, { borderColor: theme.gold }]}>
-                    <Text style={[styles.freeText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>7 DAYS FREE</Text>
-                  </View>
+                    <Text style={{ color: theme.gold, fontSize: 22, fontFamily: FONTS.bold }}>{plan.price}</Text>
                 </View>
               </View>
-              <Text style={[styles.price, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
-                {plan.price}<Text style={[styles.priceUnit, { fontFamily: FONTS.regular }]}>/month</Text>
-              </Text>
-              <View style={styles.featureList}>
+
+              {isAlpha && (
+                <View style={{ position: 'absolute', top: -12, right: 20, backgroundColor: theme.gold, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 }}>
+                  <Text style={{ color: '#000', fontSize: 10, fontFamily: FONTS.bold }}>MOST POPULAR</Text>
+                </View>
+              )}
+
+              <View style={{ marginTop: SPACING.md, gap: 10 }}>
                 {plan.features.map((f, i) => (
-                  <View key={i} style={styles.featureRow}>
-                    <Feather name={f.included ? 'check' : 'x'} size={14} color={f.included ? theme.gold : theme.textMuted} />
-                    <Text style={[styles.featureText, { color: f.included ? theme.textSecondary : theme.textMuted, fontFamily: FONTS.regular }]}>
-                      {f.name}
-                    </Text>
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Feather name="check" size={14} color={theme.gold} />
+                    <Text style={{ color: theme.textSecondary, fontSize: 13, fontFamily: FONTS.medium }}>{f}</Text>
+                  </View>
+                ))}
+                {(plan as any).excluded?.map((f: string, i: number) => (
+                   <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, opacity: 0.4 }}>
+                    <Feather name="x" size={14} color={theme.textMuted} />
+                    <Text style={{ color: theme.textMuted, fontSize: 13, fontFamily: FONTS.medium, textDecorationLine: 'line-through' }}>{f}</Text>
                   </View>
                 ))}
               </View>
-              {isAlpha ? (
-                <TouchableOpacity onPress={() => handleSelect(plan.key)} testID={`select-${plan.key}-btn`} activeOpacity={0.8}>
-                  <LinearGradient colors={[...theme.goldGradient]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.selectBtn}>
-                    <Text style={[styles.selectBtnText, { fontFamily: FONTS.semiBold }]}>
-                      {loading && selectedPlan === plan.key ? 'Loading...' : 'START FREE TRIAL'}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  onPress={() => handleSelect(plan.key)}
-                  testID={`select-${plan.key}-btn`}
-                  style={[styles.selectBtnOutline, { borderColor: theme.selectedBorder }]}
-                >
-                  <Text style={[styles.selectBtnOutlineText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>
-                    {loading && selectedPlan === plan.key ? 'Loading...' : 'SELECT PLAN'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleSelect(plan.key)}
+                style={[
+                    styles.planBtn,
+                    {
+                        backgroundColor: isAlpha ? 'transparent' : theme.bgElevated,
+                        borderColor: theme.border,
+                        borderWidth: isAlpha ? 1 : 0,
+                        marginTop: SPACING.lg,
+                        height: 54,
+                        borderRadius: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }
+                ]}
+              >
+                 <Text style={{ color: theme.textPrimary, fontSize: 20, fontFamily: FONTS.bold }}>Start Free Trial</Text>
+              </TouchableOpacity>
+            </View>
           );
         })}
-
-        <Text style={[styles.disclaimer, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
-          NOT charged until Day 8. Cancel anytime.
-        </Text>
       </ScrollView>
     </SafeAreaView>
   );

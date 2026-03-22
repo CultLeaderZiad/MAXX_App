@@ -137,19 +137,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signOut = useCallback(async () => {
-    setUser(null);
-    setToken(null);
-    api.setToken(null);
-    await Promise.all([
-      AsyncStorage.removeItem(TOKEN_KEY),
-      AsyncStorage.removeItem(REFRESH_KEY),
-      AsyncStorage.removeItem(USER_KEY),
-    ]);
+    try {
+      setUser(null);
+      setToken(null);
+      api.setToken(null);
+      await Promise.all([
+        AsyncStorage.removeItem(TOKEN_KEY),
+        AsyncStorage.removeItem(REFRESH_KEY),
+        AsyncStorage.removeItem(USER_KEY),
+      ]);
+    } catch {
+      // Fail silently
+    }
   }, []);
 
   const completeOnboarding = useCallback(async () => {
-    setIsOnboarded(true);
-    await AsyncStorage.setItem(ONBOARDED_KEY, 'true');
+    try {
+      setIsOnboarded(true);
+      await AsyncStorage.setItem(ONBOARDED_KEY, 'true');
+    } catch {
+      // Fail silently
+    }
   }, []);
 
   const updateUser = useCallback((data: Partial<User>) => {

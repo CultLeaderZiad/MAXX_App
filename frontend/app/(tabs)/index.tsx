@@ -17,16 +17,16 @@ export default function HomeScreen() {
   const [trialDismissed, setTrialDismissed] = useState(false);
   const [xpToast, setXpToast] = useState({ visible: false, amount: 0 });
 
-  const completedCount = useMemo(() => missions.filter((m) => m.completed).length, [missions]);
+  const completedCount = useMemo(() => missions.filter((m: any) => m.completed).length, [missions]);
   const allDone = completedCount === 3;
 
   const toggleMission = useCallback((id: string) => {
-    setMissions((prev) => {
-      const updated = prev.map((m) => m.id === id ? { ...m, completed: !m.completed } : m);
-      const newComplete = updated.filter((m) => m.completed).length;
-      const oldComplete = prev.filter((m) => m.completed).length;
+    setMissions((prev: any[]) => {
+      const updated = prev.map((m: any) => m.id === id ? { ...m, completed: !m.completed } : m);
+      const newComplete = updated.filter((m: any) => m.completed).length;
+      const oldComplete = prev.filter((m: any) => m.completed).length;
       if (newComplete > oldComplete) {
-        const task = updated.find((m) => m.id === id);
+        const task = updated.find((m: any) => m.id === id);
         setXpToast({ visible: true, amount: task?.xp || 40 });
       }
       return updated;
@@ -40,107 +40,98 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.greeting, { color: theme.textPrimary, fontFamily: FONTS.bold }]}>Day 7, Ziad</Text>
-            <Text style={[styles.greetSub, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>Keep pushing.</Text>
+            <Text style={[styles.greeting, { color: theme.textPrimary, fontFamily: FONTS.bold }]}>Day 12, Ziad</Text>
           </View>
-          <TouchableOpacity testID="home-bell-btn" style={styles.bellBtn}>
-            <Feather name="bell" size={22} color={theme.textSecondary} />
+          <TouchableOpacity testID="home-bell-btn" style={[styles.bellBtn, { backgroundColor: theme.bgElevated, borderRadius: 22 }]}>
+            <Feather name="bell" size={20} color={theme.textPrimary} />
           </TouchableOpacity>
         </View>
 
         {/* Power Level Card */}
-        <Card testID="power-level-card" style={styles.powerCard}>
+        <View style={[styles.powerCard, { backgroundColor: theme.bgSurface, borderColor: theme.border, borderWidth: 1, borderRadius: 16, padding: SPACING.lg }]}>
           <View style={styles.powerHeader}>
-            <Text style={[styles.powerLabel, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>POWER LEVEL</Text>
+            <Text style={[styles.powerLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>POWER LEVEL</Text>
             <View style={styles.powerScore}>
               <Feather name="zap" size={18} color={theme.gold} />
-              <Text style={[styles.powerValue, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{MOCK_PROFILE.power_level}</Text>
+              <Text style={[styles.powerValue, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>750</Text>
             </View>
           </View>
-          <ProgressBar progress={MOCK_PROFILE.power_level / 1000} testID="power-progress-bar" />
-          <Text style={[styles.levelTitle, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
-            {getLevelTitle(MOCK_PROFILE.power_level)}
+          <ProgressBar progress={0.75} />
+          <Text style={[styles.levelTitle, { color: theme.gold, fontFamily: FONTS.cinzelBold, marginTop: SPACING.md }]}>
+            ALPHA RISING
           </Text>
-        </Card>
+        </View>
 
         {/* Trial Banner */}
-        {!trialDismissed && MOCK_SUBSCRIPTION.status === 'trialing' && (
-          <TouchableOpacity activeOpacity={0.9} testID="trial-banner">
-            <LinearGradient colors={['rgba(200,169,110,0.15)', 'rgba(200,169,110,0.05)']} style={[styles.trialBanner, { borderColor: theme.selectedBorder }]}>
-              <View style={styles.trialContent}>
-                <Feather name="clock" size={16} color={theme.gold} />
-                <Text style={[styles.trialText, { color: theme.gold, fontFamily: FONTS.medium }]}>
-                  {MOCK_SUBSCRIPTION.trial_days_remaining} days remaining in trial
-                </Text>
-                <Feather name="chevron-right" size={16} color={theme.gold} />
-              </View>
-              <TouchableOpacity onPress={() => setTrialDismissed(true)} style={styles.trialClose} testID="trial-dismiss-btn">
-                <Feather name="x" size={14} color={theme.textMuted} />
-              </TouchableOpacity>
-            </LinearGradient>
+        {!trialDismissed && (
+          <TouchableOpacity activeOpacity={0.9} style={[styles.trialBanner, { borderColor: theme.gold, borderWidth: 0.5, backgroundColor: 'rgba(200,169,110,0.05)', borderRadius: 12, padding: 12, marginTop: SPACING.md }]}>
+            <View style={styles.trialContent}>
+              <Text style={[styles.trialText, { color: theme.gold, fontFamily: FONTS.medium }]}>Free Trial Active</Text>
+              <Text style={[styles.trialDays, { color: theme.gold, fontFamily: FONTS.regular, opacity: 0.8 }]}>5 days remaining →</Text>
+            </View>
           </TouchableOpacity>
         )}
 
-        {/* Daily Mission Card */}
-        <Card testID="daily-mission-card">
+        {/* Today's Mission */}
+        <View style={[styles.missionCard, { backgroundColor: theme.bgSurface, borderColor: theme.border, borderWidth: 1, borderRadius: 16, padding: SPACING.lg, marginTop: SPACING.md }]}>
           <View style={styles.missionHeader}>
-            <Text style={[styles.missionTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>Daily Mission Card</Text>
-            <Badge label={`${completedCount}/3`} />
+            <Text style={[styles.missionTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>Today's Mission</Text>
+            <View style={styles.streakBadge}>
+               <Text style={[styles.streakTextBold, { color: theme.gold, fontFamily: FONTS.semiBold }]}>7 day streak 🔥</Text>
+            </View>
           </View>
-          {missions.map((m) => (
-            <TouchableOpacity key={m.id} testID={`mission-${m.id}`} onPress={() => toggleMission(m.id)} style={styles.missionRow}>
+          
+          {[
+            { id: '1', name: 'Mewing — Jaw Set A', xp: 50, completed: true },
+            { id: '2', name: 'Posture Check', xp: 50, completed: false },
+            { id: '3', name: '20 Push-ups', xp: 30, completed: false },
+          ].map((m) => (
+            <TouchableOpacity key={m.id} onPress={() => toggleMission(m.id)} style={styles.missionRow}>
               <View style={[styles.missionCheck, { borderColor: m.completed ? theme.gold : theme.border, backgroundColor: m.completed ? theme.gold : 'transparent' }]}>
-                {m.completed && <Feather name="check" size={12} color="#0A0A0A" />}
+                {m.completed && <Feather name="check" size={12} color="#0A0A0A" /> || <Feather name="square" size={12} color="transparent" />}
               </View>
-              <Text style={[styles.missionName, { color: m.completed ? theme.textMuted : theme.textPrimary, fontFamily: FONTS.regular, textDecorationLine: m.completed ? 'line-through' : 'none' }]}>
+              <Text style={[styles.missionName, { color: m.completed ? theme.textMuted : theme.textPrimary, fontFamily: FONTS.medium, textDecorationLine: m.completed ? 'line-through' : 'none', flex: 1, marginLeft: 12 }]}>
                 {m.name}
               </Text>
-              <Badge label={`+${m.xp} XP`} small color={m.completed ? theme.textMuted : theme.gold} />
+              <View style={[styles.xpPill, { backgroundColor: theme.bgElevated, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }]}>
+                <Text style={{ color: theme.textMuted, fontSize: 11 }}>{m.xp} XP</Text>
+              </View>
             </TouchableOpacity>
           ))}
-          {allDone && (
-            <View style={[styles.bonusRow, { borderTopColor: theme.border }]}>
-              <Feather name="award" size={16} color={theme.gold} />
-              <Text style={[styles.bonusText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>+50 XP Bonus!</Text>
-            </View>
-          )}
-          <View style={styles.streakRow}>
-            <Text style={[styles.streakText, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
-              {MOCK_STREAKS.daily.current_streak} day streak
-            </Text>
-          </View>
-        </Card>
+        </View>
 
-        {/* Wisdom Card */}
-        <Card testID="wisdom-card" style={{ marginTop: SPACING.md }}>
-          <Text style={[styles.wisdomLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>WISDOM DROP</Text>
-          <Text style={[styles.wisdomQuote, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
-            "{MOCK_WISDOM.quote}"
+        {/* Wisdom Drop */}
+        <View style={[styles.wisdomCard, { backgroundColor: theme.bgSurface, borderColor: theme.border, borderWidth: 1, borderRadius: 16, padding: SPACING.lg, marginTop: SPACING.md }]}>
+          <Text style={[styles.wisdomLabel, { color: theme.textMuted, fontFamily: FONTS.medium, fontSize: 10, letterSpacing: 1 }]}>WISDOM DROP</Text>
+          <Text style={[styles.wisdomQuote, { color: theme.gold, fontFamily: FONTS.regular, fontStyle: 'italic', fontSize: 16, marginTop: 8, lineHeight: 24 }]}>
+            "Discipline is not punishment. It is the price of becoming."
           </Text>
-          <Text style={[styles.wisdomAuthor, { color: theme.textMuted, fontFamily: FONTS.regular }]}>— {MOCK_WISDOM.author}</Text>
+          <Text style={[styles.wisdomAuthor, { color: theme.textMuted, fontFamily: FONTS.regular, marginTop: 8 }]}>— MAXX Doctrine</Text>
           <View style={styles.wisdomActions}>
-            <TouchableOpacity testID="wisdom-bookmark-btn" style={styles.wisdomBtn}>
-              <Feather name="bookmark" size={18} color={theme.textSecondary} />
+            <TouchableOpacity style={[styles.wisdomBtn, { backgroundColor: theme.bgElevated, borderRadius: 10 }]}>
+              <Feather name="bookmark" size={16} color={theme.gold} />
             </TouchableOpacity>
-            <TouchableOpacity testID="wisdom-share-btn" style={styles.wisdomBtn}>
-              <Feather name="share" size={18} color={theme.textSecondary} />
+            <TouchableOpacity style={[styles.wisdomBtn, { backgroundColor: theme.bgElevated, borderRadius: 10 }]}>
+              <Feather name="share-2" size={16} color={theme.gold} />
             </TouchableOpacity>
           </View>
-        </Card>
+        </View>
 
-        {/* Progress Mini Cards */}
-        <Text style={[styles.progressTitle, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>PROGRESS</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.progressScroll}>
-          <View style={styles.progressRow}>
-            {MOCK_PROGRESS_CARDS.map((card, i) => (
-              <Card key={i} testID={`progress-card-${card.label.toLowerCase()}`} style={styles.progressCard}>
-                <Feather name={card.icon} size={18} color={theme.gold} />
-                <Text style={[styles.progressValue, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>{card.value}</Text>
-                <Text style={[styles.progressUnit, { color: theme.textMuted, fontFamily: FONTS.regular }]}>{card.unit || card.label}</Text>
-              </Card>
-            ))}
-          </View>
-        </ScrollView>
+        {/* Bottom Progress Row */}
+        <View style={styles.bottomStatsRow}>
+          {[
+            { label: 'JAW', val: '5', unit: 'days', icon: 'activity' },
+            { label: 'NOFAP', val: '12d 4h', unit: 'live', icon: 'zap' },
+            { label: 'BODY', val: '3', unit: 'workouts', icon: 'target' },
+            { label: 'XP', val: '480', unit: 'to next', icon: 'award' },
+          ].map((s, i) => (
+            <View key={i} style={[styles.statBox, { backgroundColor: theme.bgSurface, borderColor: theme.border, borderWidth: 1, borderRadius: 12, padding: 10, flex: 1, gap: 4 }]}>
+              <Text style={[styles.statLabelMini, { color: theme.textMuted, fontSize: 9, fontFamily: FONTS.medium }]}>{s.label}</Text>
+              <Text style={[styles.statValLarge, { color: theme.gold, fontSize: 16, fontFamily: FONTS.cinzelBold }]}>{s.val}</Text>
+              <Text style={[styles.statUnitMini, { color: theme.textMuted, fontSize: 9 }]}>{s.unit}</Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -183,4 +174,9 @@ const styles = StyleSheet.create({
   progressCard: { width: 100, alignItems: 'center', gap: 6, paddingVertical: SPACING.md },
   progressValue: { fontSize: 20 },
   progressUnit: { fontSize: 11 },
+  bottomStatsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
+  statBox: { alignItems: 'center', justifyContent: 'center' },
+  statLabelMini: { letterSpacing: 1 },
+  statValLarge: { },
+  statUnitMini: { },
 });

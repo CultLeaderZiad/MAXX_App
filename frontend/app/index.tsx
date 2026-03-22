@@ -8,10 +8,12 @@ import { useAuth } from '../src/context/AuthContext';
 import { Button } from '../src/components/Button';
 import { ThemeToggle } from '../src/components/ThemeToggle';
 import { FONTS, SPACING } from '../src/constants/theme';
+import { TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
-function GoldParticle({ delay, startX }: { delay: number; startX: number }) {
+function GoldParticle({ delay, startX }: { delay: number; startX: number; key?: any }) {
   const y = useRef(new Animated.Value(height)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -92,11 +94,9 @@ export default function WelcomeScreen() {
         <ThemeToggle />
       </View>
       <Animated.View style={[styles.content, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
-        <LinearGradient colors={['#8A6420', '#C8A96E', '#F0D090']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.logoGradient}>
-          <Text style={[styles.logo, { fontFamily: FONTS.cinzelBold }]}>MAXX</Text>
-        </LinearGradient>
+        <Text style={[styles.logo, { fontFamily: FONTS.cinzelBold, color: '#C8A96E' }]}>MAXX</Text>
         <Text style={[styles.tagline, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
-          Master yourself. Become unstoppable.
+          Become the man you were <Text style={{ color: theme.gold }}>built</Text> to be.
         </Text>
       </Animated.View>
       <View style={styles.bottom}>
@@ -141,27 +141,20 @@ function AuthForm({ theme, onBack }: { theme: any; onBack: () => void }) {
           setError(res.error || 'Registration failed');
         }
       }
-    } catch (e: any) {
-      setError(e?.message || 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (e: any) {
+    setError(e?.message || 'Something went wrong');
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const RNTextInput = require('react-native').TextInput;
-  const RNTouchable = require('react-native').TouchableOpacity;
-  const RNKeyboard = require('react-native').KeyboardAvoidingView;
-  const RNPlatform = require('react-native').Platform;
-  const RNScrollView = require('react-native').ScrollView;
-  const Feather = require('@expo/vector-icons').Feather;
-
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="auth-form-screen">
-      <RNKeyboard behavior={RNPlatform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <RNScrollView contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
-          <RNTouchable onPress={onBack} style={styles.backBtn} testID="auth-back-btn">
-            <Feather name="arrow-left" size={24} color={theme.gold} />
-          </RNTouchable>
+return (
+  <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="auth-form-screen">
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
+        <TouchableOpacity onPress={onBack} style={styles.backBtn} testID="auth-back-btn">
+          <Feather name="arrow-left" size={24} color={theme.gold} />
+        </TouchableOpacity>
           <Text style={[styles.authTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>
             {isLogin ? 'Welcome Back' : 'Join MAXX'}
           </Text>
@@ -171,19 +164,19 @@ function AuthForm({ theme, onBack }: { theme: any; onBack: () => void }) {
           {!isLogin && (
             <>
               <Text style={[styles.inputLabel, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>FULL NAME</Text>
-              <RNTextInput
+              <TextInput
                 testID="auth-fullname-input"
                 style={[styles.input, { backgroundColor: theme.bgInput, color: theme.textPrimary, borderColor: theme.border, fontFamily: FONTS.regular }]}
-                placeholder="Ziad Sabry"
+                placeholder="Full Name"
                 placeholderTextColor={theme.textMuted}
                 value={fullName}
                 onChangeText={setFullName}
               />
               <Text style={[styles.inputLabel, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>DATE OF BIRTH</Text>
-              <RNTextInput
+              <TextInput
                 testID="auth-dob-input"
                 style={[styles.input, { backgroundColor: theme.bgInput, color: theme.textPrimary, borderColor: theme.border, fontFamily: FONTS.regular }]}
-                placeholder="2000-01-15"
+                placeholder="YYYY-MM-DD"
                 placeholderTextColor={theme.textMuted}
                 value={dob}
                 onChangeText={setDob}
@@ -191,7 +184,7 @@ function AuthForm({ theme, onBack }: { theme: any; onBack: () => void }) {
             </>
           )}
           <Text style={[styles.inputLabel, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>EMAIL</Text>
-          <RNTextInput
+          <TextInput
             testID="auth-email-input"
             style={[styles.input, { backgroundColor: theme.bgInput, color: theme.textPrimary, borderColor: theme.border, fontFamily: FONTS.regular }]}
             placeholder="you@example.com"
@@ -202,7 +195,7 @@ function AuthForm({ theme, onBack }: { theme: any; onBack: () => void }) {
             autoCapitalize="none"
           />
           <Text style={[styles.inputLabel, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>PASSWORD</Text>
-          <RNTextInput
+          <TextInput
             testID="auth-password-input"
             style={[styles.input, { backgroundColor: theme.bgInput, color: theme.textPrimary, borderColor: theme.border, fontFamily: FONTS.regular }]}
             placeholder="Min 8 characters"
@@ -215,13 +208,13 @@ function AuthForm({ theme, onBack }: { theme: any; onBack: () => void }) {
           <View style={{ marginTop: SPACING.lg }}>
             <Button title={isLogin ? 'SIGN IN' : 'CREATE ACCOUNT'} onPress={handleSubmit} loading={loading} testID="auth-submit-btn" />
           </View>
-          <RNTouchable onPress={() => { setIsLogin(!isLogin); setError(''); }} style={styles.switchBtn} testID="auth-switch-btn">
+          <TouchableOpacity onPress={() => { setIsLogin(!isLogin); setError(''); }} style={styles.switchBtn} testID="auth-switch-btn">
             <Text style={[styles.switchText, { color: theme.gold, fontFamily: FONTS.medium }]}>
               {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
             </Text>
-          </RNTouchable>
-        </RNScrollView>
-      </RNKeyboard>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -231,8 +224,8 @@ const styles = StyleSheet.create({
   topRight: { position: 'absolute', top: 60, right: 16, zIndex: 10 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg },
   logoGradient: { borderRadius: 8, paddingHorizontal: 4, paddingVertical: 2 },
-  logo: { fontSize: 64, color: '#C8A96E', letterSpacing: 8 },
-  tagline: { fontSize: 16, marginTop: SPACING.md, textAlign: 'center' },
+  logo: { fontSize: 80, letterSpacing: 12, textAlign: 'center' },
+  tagline: { fontSize: 18, marginTop: SPACING.md, textAlign: 'center', opacity: 0.9 },
   bottom: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl, gap: SPACING.md },
   subtext: { fontSize: 11, textAlign: 'center' },
   authScroll: { padding: SPACING.lg, paddingTop: SPACING.md },

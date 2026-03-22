@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -31,48 +31,57 @@ export default function GoalsScreen() {
           ))}
         </View>
       </View>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Prime targets?</Text>
-        <Text style={[styles.sub, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>Select what you want to improve</Text>
-        <View style={styles.grid}>
-          {GOAL_OPTIONS.map((goal) => {
-            const isSel = selected.includes(goal.key);
-            return (
-              <TouchableOpacity
-                key={goal.key}
-                testID={`goal-${goal.key}`}
-                onPress={() => toggle(goal.key)}
-                activeOpacity={0.7}
-                style={[
-                  styles.goalCard,
-                  {
-                    backgroundColor: isSel ? 'rgba(200,169,110,0.08)' : theme.bgSurface,
-                    borderColor: isSel ? theme.borderActive : theme.border,
-                  },
-                ]}
-              >
-                {isSel && (
-                  <View style={[styles.checkBadge, { backgroundColor: theme.gold }]}>
-                    <Feather name="check" size={10} color="#0A0A0A" />
-                  </View>
-                )}
-                <Feather name={goal.icon as any} size={28} color={isSel ? theme.gold : theme.textMuted} />
-                <Text style={[styles.goalLabel, { color: isSel ? theme.textPrimary : theme.textSecondary, fontFamily: FONTS.medium }]}>
-                  {goal.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <TouchableOpacity onPress={() => setAgreed(!agreed)} style={styles.agreeRow} testID="goals-agree-btn">
-          <View style={[styles.checkbox, { borderColor: agreed ? theme.gold : theme.border, backgroundColor: agreed ? theme.gold : 'transparent' }]}>
-            {agreed && <Feather name="check" size={12} color="#0A0A0A" />}
-          </View>
-          <Text style={[styles.agreeText, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
-            I agree to Terms and Privacy Policy
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
+      <FlatList
+        data={GOAL_OPTIONS}
+        keyExtractor={(item) => item.key}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <>
+            <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Prime targets?</Text>
+            <Text style={[styles.sub, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>Select what you want to improve</Text>
+          </>
+        }
+        renderItem={({ item: goal }) => {
+          const isSel = selected.includes(goal.key);
+          return (
+            <TouchableOpacity
+              testID={`goal-${goal.key}`}
+              onPress={() => toggle(goal.key)}
+              activeOpacity={0.7}
+              style={[
+                styles.goalCard,
+                {
+                  backgroundColor: isSel ? 'rgba(200,169,110,0.08)' : theme.bgSurface,
+                  borderColor: isSel ? theme.borderActive : theme.border,
+                },
+              ]}
+            >
+              {isSel && (
+                <View style={[styles.checkBadge, { backgroundColor: theme.gold }]}>
+                  <Feather name="check" size={10} color="#0A0A0A" />
+                </View>
+              )}
+              <Feather name={goal.icon as any} size={28} color={isSel ? theme.gold : theme.textMuted} />
+              <Text style={[styles.goalLabel, { color: isSel ? theme.textPrimary : theme.textSecondary, fontFamily: FONTS.medium }]}>
+                {goal.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
+        ListFooterComponent={
+          <TouchableOpacity onPress={() => setAgreed(!agreed)} style={styles.agreeRow} testID="goals-agree-btn">
+            <View style={[styles.checkbox, { borderColor: agreed ? theme.gold : theme.border, backgroundColor: agreed ? theme.gold : 'transparent' }]}>
+              {agreed && <Feather name="check" size={12} color="#0A0A0A" />}
+            </View>
+            <Text style={[styles.agreeText, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
+              I agree to Terms and Privacy Policy
+            </Text>
+          </TouchableOpacity>
+        }
+      />
       <View style={styles.bottom}>
         <Button
           title="CONTINUE"
@@ -92,6 +101,7 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', gap: 8, marginLeft: 'auto', marginRight: SPACING.md },
   dot: { width: 8, height: 8, borderRadius: 4 },
   scroll: { padding: SPACING.lg },
+  row: { justifyContent: 'space-between', marginBottom: SPACING.md },
   title: { fontSize: 28 },
   sub: { fontSize: 14, marginTop: SPACING.xs, marginBottom: SPACING.xl },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md },

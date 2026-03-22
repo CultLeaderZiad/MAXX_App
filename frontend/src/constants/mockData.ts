@@ -1,8 +1,8 @@
 export const MOCK_USER = {
   id: 'user_001',
-  email: 'ziad@example.com',
-  full_name: 'Ziad',
-  date_of_birth: '2000-01-15',
+  email: 'user@example.com',
+  full_name: 'Member',
+  date_of_birth: '2000-01-01',
 };
 
 export const MOCK_PROFILE = {

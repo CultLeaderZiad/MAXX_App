@@ -1,0 +1,12 @@
+{
+  "name": "maxx-app-monorepo",
+  "version": "1.0.0",
+  "description": "MAXX App - Men's Self-Improvement & Looksmaxxing",
+  "private": true,
+  "scripts": {
+    "install:all": "cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
+    "dev:frontend": "cd frontend && npm run start",
+    "dev:backend": "cd backend && python server.py",
+    "lint": "cd frontend && npm run lint"
+  }
+}

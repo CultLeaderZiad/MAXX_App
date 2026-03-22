@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -37,89 +37,101 @@ export default function TrainScreen() {
           ))}
         </View>
       </ScrollView>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.contentWrap}>
         {activeTab === 'Jaw & Face' && <JawFaceTab theme={theme} />}
         {activeTab === 'Body' && <BodyTab theme={theme} />}
         {activeTab === 'Health' && <HealthTab theme={theme} />}
         {activeTab === 'NoFap' && <NoFapTab theme={theme} />}
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 function JawFaceTab({ theme }: { theme: any }) {
   const router = useRouter();
-  const levels = useMemo(() => [JAW_EXERCISES.level1, JAW_EXERCISES.level2, JAW_EXERCISES.level3], []);
+  
+  const levels = [
+    {
+      id: 1,
+      title: 'Level 1',
+      status: 'unlocked',
+      tasks: [
+        { name: 'Mewing Fundamentals', completed: true },
+        { name: 'Jaw Chew Basics', completed: true },
+        { name: 'Posture Check', completed: true },
+        { name: '20 Push-ups', completed: true },
+      ]
+    },
+    {
+      id: 2,
+      title: 'Level 2',
+      status: 'locked',
+      progress: 3,
+      total: 7,
+      daysLeft: 4,
+    },
+    {
+      id: 3,
+      title: 'Level 3',
+      status: 'locked',
+    }
+  ];
 
   return (
-    <View style={{ gap: SPACING.md }}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <Text style={[styles.sectionSub, { color: theme.textMuted, fontFamily: FONTS.medium, marginBottom: SPACING.md }]}>JAW & FACE — LEVEL LOCK</Text>
+      
       {levels.map((level, idx) => {
         const isLocked = level.status === 'locked';
         return (
-          <Card key={idx} testID={`jaw-level-${idx + 1}`} style={[isLocked && idx === 2 && { opacity: 0.4 }]}>
-            {!isLocked && <View style={[styles.levelAccent, { backgroundColor: theme.gold }]} />}
+          <View key={level.id} style={[styles.levelCard, { backgroundColor: theme.bgSurface, borderColor: isLocked ? theme.border : theme.gold, borderWidth: 1, borderRadius: 16, padding: SPACING.lg, marginBottom: SPACING.md, opacity: idx === 2 ? 0.4 : 1 }]}>
             <View style={styles.levelHeader}>
               <Text style={[styles.levelTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{level.title}</Text>
-              {isLocked ? (
-                <View style={styles.lockRow}>
-                  <Feather name="lock" size={14} color={theme.textMuted} />
-                  <Text style={[styles.lockText, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
-                    {(level as any).daysToUnlock} days to unlock
-                  </Text>
+              {level.status === 'unlocked' ? (
+                <View style={[styles.unlockedBadge, { backgroundColor: 'rgba(46, 204, 113, 0.1)', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 }]}>
+                  <Text style={{ color: '#2ecc71', fontSize: 11, fontFamily: FONTS.medium }}>Unlocked</Text>
                 </View>
               ) : (
-                <Badge label="Unlocked" color={theme.green} />
+                 <Feather name="lock" size={16} color={theme.textMuted} />
               )}
             </View>
-            {isLocked && (level as any).progress !== undefined && (
-              <View style={{ marginTop: SPACING.sm }}>
-                <ProgressBar progress={(level as any).progress / (level as any).daysToUnlock} animated={false} />
-                <Text style={[styles.progressLabel, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
-                  {(level as any).progress} of {(level as any).daysToUnlock} days
-                </Text>
+
+            {level.status === 'unlocked' && level.tasks?.map((t, i) => (
+              <View key={i} style={styles.taskRow}>
+                <View style={[styles.checkCircle, { backgroundColor: theme.gold }]}>
+                  <Feather name="check" size={10} color="#000" />
+                </View>
+                <Text style={[styles.taskName, { color: theme.textSecondary, fontFamily: FONTS.medium, marginLeft: 10 }]}>{t.name}</Text>
+              </View>
+            ))}
+
+            {level.id === 2 && (
+              <View style={{ marginTop: SPACING.md }}>
+                <View style={[styles.progressBarBg, { backgroundColor: theme.bgElevated, height: 4, borderRadius: 2 }]}>
+                   <View style={[styles.progressBarFill, { backgroundColor: theme.gold, width: '43%', height: 4, borderRadius: 2 }]} />
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                   <Text style={{ color: theme.textMuted, fontSize: 11 }}>3 of 7 days complete</Text>
+                   <Text style={{ color: theme.gold, fontSize: 11 }}>4 days to unlock</Text>
+                </View>
               </View>
             )}
-            {!isLocked && level.exercises.map((ex: any) => (
-              <TouchableOpacity
-                key={ex.id}
-                testID={`exercise-${ex.id}`}
-                style={styles.exerciseRow}
-                onPress={() => router.push({ pathname: '/exercise', params: { name: ex.name, sets: ex.sets, hold: ex.hold, rest: ex.rest, xp: ex.xp } })}
-              >
-                <View style={[styles.exCheck, { borderColor: ex.completed ? theme.gold : theme.border, backgroundColor: ex.completed ? theme.gold : 'transparent' }]}>
-                  {ex.completed && <Feather name="check" size={10} color="#0A0A0A" />}
-                </View>
-                <Text style={[styles.exName, { color: ex.completed ? theme.textMuted : theme.textPrimary, fontFamily: FONTS.regular }]}>{ex.name}</Text>
-                <Badge label={`+${ex.xp} XP`} small />
-              </TouchableOpacity>
-            ))}
-            {!isLocked && (
-              <TouchableOpacity
-                testID={`start-level-${idx + 1}`}
-                style={[styles.startBtn, { borderColor: theme.selectedBorder }]}
-                onPress={() => {
-                  const firstIncomplete = level.exercises.find((e: any) => !e.completed);
-                  if (firstIncomplete) {
-                    router.push({ pathname: '/exercise', params: { name: firstIncomplete.name, sets: firstIncomplete.sets, hold: firstIncomplete.hold, rest: firstIncomplete.rest, xp: firstIncomplete.xp } });
-                  }
-                }}
-              >
-                <Text style={[styles.startBtnText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>Start</Text>
-              </TouchableOpacity>
-            )}
-          </Card>
+          </View>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 function BodyTab({ theme }: { theme: any }) {
   return (
-    <View style={{ gap: SPACING.md }}>
-      <Text style={[styles.sectionSub, { color: theme.textMuted, fontFamily: FONTS.medium }]}>NATURAL PROGRAMS — NO TRT / PEDS</Text>
-      {BODY_PROGRAMS.map((prog) => (
-        <Card key={prog.key} testID={`body-${prog.key}`}>
+    <FlatList
+      data={BODY_PROGRAMS}
+      keyExtractor={(item: any) => item.key}
+      contentContainerStyle={styles.content}
+      ListHeaderComponent={<Text style={[styles.sectionSub, { color: theme.textMuted, fontFamily: FONTS.medium, marginBottom: SPACING.md }]}>NATURAL PROGRAMS — NO TRT / PEDS</Text>}
+      renderItem={({ item: prog }: { item: any }) => (
+        <Card testID={`body-${prog.key}`} style={styles.tabCard}>
           <View style={styles.bodyHeader}>
             <Text style={[styles.bodyTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{prog.title}</Text>
             <Badge label={prog.badge} />
@@ -130,23 +142,26 @@ function BodyTab({ theme }: { theme: any }) {
             <Text style={[styles.bodyStat, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>{prog.exercises} exercises</Text>
           </View>
           <View style={styles.sampleRow}>
-            {prog.sample.map((s, i) => (
+            {prog.sample.map((s: string, i: number) => (
               <Text key={i} style={[styles.sampleText, { color: theme.textMuted, fontFamily: FONTS.regular }]}>• {s}</Text>
             ))}
           </View>
           <Button title="Start Program" variant="secondary" onPress={() => {}} testID={`start-body-${prog.key}`} style={{ marginTop: SPACING.md }} />
         </Card>
-      ))}
-    </View>
+      )}
+    />
   );
 }
 
 function HealthTab({ theme }: { theme: any }) {
   return (
-    <View style={{ gap: SPACING.sm }}>
-      {HEALTH_MODULES.map((mod, i) => (
-        <TouchableOpacity key={mod.id} testID={`health-${mod.id}`} activeOpacity={0.7}
-          style={[styles.modRow, { backgroundColor: theme.bgSurface, borderColor: theme.border, opacity: mod.locked ? 0.5 : 1 }]}>
+    <FlatList
+      data={HEALTH_MODULES}
+      keyExtractor={(item: any) => item.id}
+      contentContainerStyle={styles.content}
+      renderItem={({ item: mod, index: i }: { item: any; index: number }) => (
+        <TouchableOpacity testID={`health-${mod.id}`} activeOpacity={0.7}
+          style={[styles.modRow, { backgroundColor: theme.bgSurface, borderColor: theme.border, opacity: mod.locked ? 0.5 : 1, marginBottom: SPACING.sm }]}>
           <View style={[styles.modNum, { backgroundColor: theme.bgElevated }]}>
             <Text style={[styles.modNumText, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{i + 1}</Text>
           </View>
@@ -156,8 +171,8 @@ function HealthTab({ theme }: { theme: any }) {
           </View>
           {mod.locked ? <Feather name="lock" size={16} color={theme.textMuted} /> : <Feather name="chevron-right" size={16} color={theme.textSecondary} />}
         </TouchableOpacity>
-      ))}
-    </View>
+      )}
+    />
   );
 }
 
@@ -194,52 +209,69 @@ function NoFapTab({ theme }: { theme: any }) {
     );
   }, []);
 
+  const sections = [
+    { type: 'counter' },
+    { type: 'milestones' },
+    { type: 'boost' },
+    { type: 'actions' },
+  ];
+
   return (
-    <View style={{ gap: SPACING.md }}>
-      <Card testID="nofap-counter-card" style={styles.nofapCard}>
-        <Text style={[styles.nofapLabel, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>NOFAP TRACKER</Text>
-        <Text style={[styles.nofapTimer, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
-          {days}d {pad(hours)}h
-        </Text>
-        <Text style={[styles.nofapSubTimer, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
-          {pad(mins)}:{pad(secs)}
-        </Text>
-        <Text style={[styles.nofapDay, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
-          Day {days} of 30
-        </Text>
-        <ProgressBar progress={Math.min(days / 30, 1)} testID="nofap-progress" />
-      </Card>
-
-      {/* Milestones */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.milestoneRow}>
-          {NOFAP_MILESTONES.map((ms) => {
-            const reached = days >= ms.day;
-            return (
-              <View key={ms.day} testID={`milestone-${ms.day}`}
-                style={[styles.milestone, { backgroundColor: reached ? 'rgba(200,169,110,0.1)' : theme.bgSurface, borderColor: reached ? theme.borderActive : theme.border }]}>
-                <Text style={[styles.msLabel, { color: reached ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold }]}>{ms.label}</Text>
-                <Text style={[styles.msStatus, { color: reached ? theme.green : theme.textMuted, fontFamily: FONTS.regular }]}>
-                  {reached ? 'Done' : `${ms.day - days} left`}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      </ScrollView>
-
-      {/* Power boost */}
-      <Card testID="nofap-boost-card">
-        <View style={styles.boostRow}>
-          <Feather name="zap" size={18} color={theme.gold} />
-          <Text style={[styles.boostText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>NoFap Power Boost +{days * 3} pts</Text>
-        </View>
-      </Card>
-
-      {/* Action buttons */}
-      <Button title="RELAPSE — 2-step confirm" variant="danger" onPress={handleRelapse} testID="nofap-relapse-btn" />
-      <Button title="Emergency Mode" onPress={() => router.push('/emergency')} testID="nofap-emergency-btn" />
-    </View>
+    <FlatList
+      data={sections}
+      keyExtractor={(_: any, i: number) => i.toString()}
+      contentContainerStyle={styles.content}
+      renderItem={({ item }: { item: any }) => {
+        if (item.type === 'counter') return (
+          <Card testID="nofap-counter-card" style={styles.nofapCard}>
+            <Text style={[styles.nofapLabel, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>NOFAP TRACKER</Text>
+            <Text style={[styles.nofapTimer, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
+              {days}d {pad(hours)}h
+            </Text>
+            <Text style={[styles.nofapSubTimer, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
+              {pad(mins)}:{pad(secs)}
+            </Text>
+            <Text style={[styles.nofapDay, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
+              Day {days} of 30
+            </Text>
+            <ProgressBar progress={Math.min(days / 30, 1)} testID="nofap-progress" />
+          </Card>
+        );
+        if (item.type === 'milestones') return (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: SPACING.md }}>
+            <View style={styles.milestoneRow}>
+              {NOFAP_MILESTONES.map((ms) => {
+                const reached = days >= ms.day;
+                return (
+                  <View key={ms.day} testID={`milestone-${ms.day}`}
+                    style={[styles.milestone, { backgroundColor: reached ? 'rgba(200,169,110,0.1)' : theme.bgSurface, borderColor: reached ? theme.borderActive : theme.border }]}>
+                    <Text style={[styles.msLabel, { color: reached ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold }]}>{ms.label}</Text>
+                    <Text style={[styles.msStatus, { color: reached ? theme.green : theme.textMuted, fontFamily: FONTS.regular }]}>
+                      {reached ? 'Done' : `${ms.day - days} left`}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        );
+        if (item.type === 'boost') return (
+          <Card testID="nofap-boost-card" style={{ marginBottom: SPACING.md }}>
+            <View style={styles.boostRow}>
+              <Feather name="zap" size={18} color={theme.gold} />
+              <Text style={[styles.boostText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>NoFap Power Boost +{days * 3} pts</Text>
+            </View>
+          </Card>
+        );
+        if (item.type === 'actions') return (
+          <View style={{ gap: SPACING.sm }}>
+            <Button title="RELAPSE — 2-step confirm" variant="danger" onPress={handleRelapse} testID="nofap-relapse-btn" />
+            <Button title="Emergency Mode" onPress={() => router.push('/emergency')} testID="nofap-emergency-btn" />
+          </View>
+        );
+        return null;
+      }}
+    />
   );
 }
 
@@ -250,9 +282,17 @@ const styles = StyleSheet.create({
   tabRow: { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg },
   tabPill: { paddingHorizontal: SPACING.md, paddingVertical: 10, borderRadius: RADIUS.sm },
   tabText: { fontSize: 13 },
+  contentWrap: { flex: 1 },
   content: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
-  levelAccent: { position: 'absolute', left: 0, top: 12, bottom: 12, width: 3, borderRadius: 1.5 },
-  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
+  tabCard: { marginBottom: SPACING.md },
+  levelCard: { marginBottom: SPACING.md },
+  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+  unlockedBadge: { },
+  taskRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  checkCircle: { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  taskName: { fontSize: 14 },
+  progressBarBg: { height: 4, width: '100%'},
+  progressBarFill: { },
   levelTitle: { fontSize: 16 },
   lockRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   lockText: { fontSize: 12 },
