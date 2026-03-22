@@ -1,12 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useTheme } from '../src/context/ThemeContext';
-import { useAuth } from '../src/context/AuthContext';
-import { Button } from '../src/components/Button';
-import { FONTS, SPACING } from '../src/constants/theme';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useAuth } from '../../src/context/AuthContext';
+import { Button } from '../../src/components/Button';
+import { FONTS, SPACING } from '../../src/constants/theme';
 
 export default function SettingsScreen() {
   const { theme, toggleTheme, mode } = useTheme();
@@ -14,8 +14,24 @@ export default function SettingsScreen() {
   const router = useRouter();
 
   const handleSignOut = async () => {
-    await signOut();
-    router.replace('/');
+    Alert.alert('Sign Out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: async () => {
+        await signOut();
+        router.replace('/');
+      }}
+    ]);
+  };
+
+  const handleDeleteAccount = () => {
+      Alert.alert('Delete Account', 'This action is permanent. Type DELETE to confirm (Mock).', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'DELETE', style: 'destructive', onPress: async () => {
+              // Call backend delete in Phase 10
+              await signOut();
+              router.replace('/');
+          }}
+      ]);
   };
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -65,9 +81,9 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Section title="ACCOUNT">
-          <Item label="Edit Profile" onPress={() => {}} />
-          <Item label="Change Password" onPress={() => {}} />
-          <Item label="Delete Account" value="30-day grace period" color="#E74C3C" onPress={() => {}} icon={null} />
+          <Item label="Edit Profile" onPress={() => router.push('/settings/edit-profile')} />
+          <Item label="Change Password" onPress={() => Alert.alert('Coming Soon', 'Password change modal')} />
+          <Item label="Delete Account" value="30-day grace period" color="#E74C3C" onPress={handleDeleteAccount} icon={null} />
         </Section>
 
         <Section title="SECURITY">
@@ -81,8 +97,8 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title="SUBSCRIPTION">
-          <Item label="Current Plan" value="Alpha" onPress={() => {}} />
-          <Item label="Cancel Subscription" color={theme.textMuted} onPress={() => {}} icon={null} />
+          <Item label="Current Plan" value="Alpha" onPress={() => router.push('/plans')} />
+          <Item label="Cancel Subscription" color={theme.textMuted} onPress={() => Alert.alert('Cancel', 'Contact support to cancel.')} icon={null} />
         </Section>
         
         <Section title="SUPPORT">
@@ -92,7 +108,7 @@ export default function SettingsScreen() {
 
         <View style={styles.footer}>
           <Button title="SIGN OUT" onPress={handleSignOut} variant="danger" />
-          <Text style={[styles.version, { color: theme.textMuted, fontFamily: FONTS.regular }]}>MAXX v1.0.0 — Licensed to {user?.full_name || 'Member'}</Text>
+          <Text style={[styles.version, { color: theme.textMuted, fontFamily: FONTS.regular }]}>MAXX v1.0.0 — Licensed to {user?.email || 'Member'}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

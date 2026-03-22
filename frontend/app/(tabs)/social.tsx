@@ -1,17 +1,21 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useAuth } from '../../src/context/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { FONTS, SPACING } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
+import { Card } from '../../src/components/Card';
 
 const TABS = ['Audit', 'Dating IQ', 'Brotherhood'];
 const PLATFORMS = ['Instagram', 'TikTok', 'Twitter', 'LinkedIn', 'Tinder'];
 
 export default function SocialScreen() {
   const { theme } = useTheme();
-  const [activeTab, setActiveTab] = useState('Audit');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('Brotherhood');
   const [activePlatform, setActivePlatform] = useState('Instagram');
   const [aiEngine, setAiEngine] = useState('Claude');
 
@@ -58,7 +62,7 @@ export default function SocialScreen() {
         multiline
       />
 
-      <Button title="Analyse Profile" onPress={() => {}} testID="social-analyse-btn" />
+      <Button title="Analyse Profile" onPress={() => { alert('Analysis started (Backend Phase 10)'); }} testID="social-analyse-btn" />
 
       {/* Result Card */}
       <View style={[styles.resultCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
@@ -86,52 +90,104 @@ export default function SocialScreen() {
     </ScrollView>
   );
 
-  const BrotherhoodView = () => (
-    <View style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.subText, { color: theme.textMuted, fontFamily: FONTS.regular, fontStyle: 'italic', marginBottom: SPACING.md }]}>Wins only · Anonymous · No negativity</Text>
-        
-        {[
-          { id: 1, user: 'Alpha_4921', tag: 'Win', tagCol: '#2ECC71', text: 'Day 30 NoFap complete. First time in 3 years. My focus is insane now. Keep going brothers.', likes: 24, time: '2 hours ago' },
-          { id: 2, user: 'Alpha_0072', tag: 'Milestone', tagCol: theme.gold, text: 'Level 2 jaw training unlocked. Jaw line starting to show after 2 weeks. The mewing actually works.', likes: 11, time: '5 hours ago' },
-          { id: 3, user: 'Alpha_3317', tag: 'Insight', tagCol: '#3498DB', text: 'Cold showers for 14 days straight. The first 30 seconds never gets easier but everything after does.', likes: 8, time: '1 day ago' },
-        ].map(post => (
-          <View key={post.id} style={[styles.postCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-            <View style={styles.postHeader}>
-              <View style={styles.postUserRow}>
-                <View style={[styles.postAvatar, { backgroundColor: theme.bgElevated }]}>
-                  <Feather name="user" size={14} color={theme.textMuted} />
+  const BrotherhoodView = () => {
+    const [posts, setPosts] = useState([
+        { id: 1, user: 'Alpha_4921', tag: 'Win', tagCol: '#2ECC71', text: 'Day 30 NoFap complete. First time in 3 years. My focus is insane now. Keep going brothers.', likes: 24, time: '2 hours ago' },
+        { id: 2, user: 'Alpha_0072', tag: 'Milestone', tagCol: theme.gold, text: 'Level 2 jaw training unlocked. Jaw line starting to show after 2 weeks. The mewing actually works.', likes: 11, time: '5 hours ago' },
+    ]);
+
+    useEffect(() => {
+        // Subscribe to posts
+        const channel = supabase.channel('public:posts')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, payload => {
+                const newPost = payload.new;
+                setPosts(prev => [{
+                    id: newPost.id,
+                    user: 'Anon_User', 
+                    tag: newPost.type || 'Win',
+                    tagCol: theme.gold,
+                    text: newPost.content,
+                    likes: 0,
+                    time: 'Just now'
+                }, ...prev]);
+            })
+            .subscribe();
+            
+        return () => { supabase.removeChannel(channel); };
+    }, []);
+
+    return (
+      <View style={styles.flex}>
+        <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+          <Text style={[styles.subText, { color: theme.textMuted, fontFamily: FONTS.regular, fontStyle: 'italic', marginBottom: SPACING.md }]}>Wins only · Anonymous · No negativity</Text>
+          
+          {posts.map((post: any) => (
+            <View key={post.id} style={[styles.postCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+              <View style={styles.postHeader}>
+                <View style={styles.postUserRow}>
+                  <View style={[styles.postAvatar, { backgroundColor: theme.bgElevated }]}>
+                    <Feather name="user" size={14} color={theme.textMuted} />
+                  </View>
+                  <Text style={[styles.postUser, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>{post.user}</Text>
                 </View>
-                <Text style={[styles.postUser, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>{post.user}</Text>
+                <View style={[styles.tagPill, { backgroundColor: (post.tagCol || theme.gold) + '22' }]}>
+                  <Text style={[styles.tagText, { color: post.tagCol || theme.gold, fontFamily: FONTS.semiBold }]}>{post.tag}</Text>
+                </View>
               </View>
-              <View style={[styles.tagPill, { backgroundColor: post.tagCol + '22' }]}>
-                <Text style={[styles.tagText, { color: post.tagCol, fontFamily: FONTS.semiBold }]}>{post.tag}</Text>
+              <Text style={[styles.postText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{post.text}</Text>
+              <View style={styles.postFooter}>
+                <Text style={[styles.postTime, { color: theme.textMuted }]}>{post.time}</Text>
+                <View style={styles.postActions}>
+                  <TouchableOpacity style={[styles.likeBtn, { backgroundColor: theme.bgElevated }]}>
+                     <Feather name="thumbs-up" size={12} color={theme.gold} />
+                     <Text style={[styles.likeText, { color: theme.textSecondary }]}>{post.likes}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-            <Text style={[styles.postText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{post.text}</Text>
-            <View style={styles.postFooter}>
-              <Text style={[styles.postTime, { color: theme.textMuted }]}>{post.time}</Text>
-              <View style={styles.postActions}>
-                <TouchableOpacity style={[styles.likeBtn, { backgroundColor: theme.bgElevated }]}>
-                   <Feather name="thumbs-up" size={12} color={theme.gold} />
-                   <Text style={[styles.likeText, { color: theme.textSecondary }]}>{post.likes}</Text>
+          ))}
+        </ScrollView>
+        <TouchableOpacity style={[styles.fab, { backgroundColor: theme.gold }]}>
+          <Feather name="plus" size={24} color="#0A0A0A" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const DatingIQView = () => {
+      const lessons = [
+          { id: 1, title: 'The Approach', time: '5 min', number: '01' },
+          { id: 2, title: 'Texting Game', time: '8 min', number: '02' },
+          { id: 3, title: 'First Date Logistics', time: '6 min', number: '03' },
+          { id: 4, title: 'Escalation', time: '7 min', number: '04', locked: true },
+      ];
+      
+      return (
+        <ScrollView contentContainerStyle={styles.tabContent}>
+            {lessons.map(l => (
+                <TouchableOpacity key={l.id}>
+                    <Card style={[styles.lessonCard, { opacity: l.locked ? 0.6 : 1 }]}>
+                        <View style={styles.lessonLeft}>
+                            <Text style={[styles.lessonNum, { color: theme.textMuted, fontFamily: FONTS.cinzelBold }]}>{l.number}</Text>
+                            <View>
+                                <Text style={[styles.lessonTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{l.title}</Text>
+                                <Text style={[styles.lessonTime, { color: theme.textSecondary }]}>{l.time} read</Text>
+                            </View>
+                        </View>
+                        {l.locked ? <Feather name="lock" size={18} color={theme.textMuted} /> : <Feather name="play-circle" size={20} color={theme.gold} />}
+                    </Card>
                 </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.gold }]}>
-        <Feather name="plus" size={24} color="#0A0A0A" />
-      </TouchableOpacity>
-    </View>
-  );
+            ))}
+        </ScrollView>
+      );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="social-screen">
-      <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>{activeTab === 'Brotherhood' ? 'Brotherhood' : 'Social'}</Text>
+      <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>
+        {activeTab}
+      </Text>
       
-      {/* Sub Tabs */}
       <View style={styles.tabBar}>
         {TABS.map(tab => (
           <TouchableOpacity
@@ -147,7 +203,7 @@ export default function SocialScreen() {
       <View style={styles.flex}>
         {activeTab === 'Audit' && <AuditView />}
         {activeTab === 'Brotherhood' && <BrotherhoodView />}
-        {activeTab === 'Dating IQ' && <View style={styles.placeholder}><Text style={{ color: theme.textMuted }}>Coming Soon</Text></View>}
+        {activeTab === 'Dating IQ' && <DatingIQView />}
       </View>
     </SafeAreaView>
   );
@@ -199,5 +255,11 @@ const styles = StyleSheet.create({
   likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10 },
   likeText: { fontSize: 12 },
   fab: { position: 'absolute', bottom: 30, right: 30, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 5 },
-  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  
+  // Dating IQ
+  lessonCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.lg },
+  lessonLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  lessonNum: { fontSize: 18, width: 30 },
+  lessonTitle: { fontSize: 15 },
+  lessonTime: { fontSize: 12, marginTop: 2 },
 });
