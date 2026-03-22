@@ -1,16 +1,38 @@
 import React, { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Cinzel_700Bold } from '@expo-google-fonts/cinzel';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
-import { AuthProvider } from '../src/context/AuthContext';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { PlanProvider } from '../context/PlanContext';
+import { View } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
 function RootNav() {
   const { theme, mode } = useTheme();
+  const { session, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+
+    const inTabsGroup = segments[0] === '(tabs)';
+
+    if (session && !inTabsGroup) {
+      router.replace('/(tabs)');
+    } else if (!session && inTabsGroup) {
+      router.replace('/');
+    }
+  }, [session, loading, segments]);
+
+  if (loading) {
+    return <View style={{ flex: 1, backgroundColor: theme.bgPrimary }} />;
+  }
+
   return (
     <>
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
@@ -41,7 +63,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <RootNav />
+        <PlanProvider>
+          <RootNav />
+        </PlanProvider>
       </AuthProvider>
     </ThemeProvider>
   );
