@@ -1,76 +1,129 @@
 # MAXX App — Project Status for Incoming Agent
 
 ## What This App Is
-MAXX is a high-performance self-improvement and "looksmaxxing" mobile application designed for men. It combines habit tracking (NoFap), specialized training (Jaw & Face, Body, Health), and psychological focus tools. The app aims to monetize through premium "Prime" subscriptions and specialized workout programs, targeting users who want to optimize their physical appearance, discipline, and social performance.
+MAXX is a premium self-improvement and "looksmaxxing" application designed specifically for men. It focuses on physical and psychological optimization through specialized training (Jaw & Face, Body, Health), habit tracking (NoFap), and AI-driven tools like profile auditing and a "Dating IQ" lab. The app monetizes through tiered premium subscriptions (Grind, Alpha, Sigma) that unlock advanced features and unlimited AI usage.
 
 ## Tech Stack
-- **Frontend**:
-  - React Native (0.81.5) via Expo (54.0.33)
-  - Expo Router (v6) for file-based navigation
-  - Context API for State Management (Auth, Theme)
-  - AsyncStorage for persistence
-  - Expo Linear Gradient & Vector Icons (Feather)
-  - TypeScript (v5.9)
-- **Backend**:
-  - Python (FastAPI v0.110.1)
-  - MongoDB (via Motor/Pymongo)
-  - Pydantic for data validation
-  - Uvicorn (ASGI server)
-  - JWT (Python-jose) & Passlib (Bcrypt)
-- **Monorepo / DX**:
-  - Root `package.json` for task automation (`npm run dev:frontend`, `npm run dev:backend`).
+### Frontend
+- **Framework:** Expo 54.0.33 (React Native 0.81.5)
+- **Navigation:** Expo Router v6
+- **Language:** TypeScript
+- **Styling:** Vanilla React Native StyleSheet
+- **State Management:** Context API (Auth, Theme)
+- **Storage:** @react-native-async-storage/async-storage
+- **Icons:** @expo/vector-icons (Feather, Lucide via Feather)
+- **Fonts:** Expo Google Fonts (Cinzel, Inter)
+- **Feedback:** React Native Haptic Feedback
 
-## What Is Already Built (working code exists)
-| Screen/Feature | File Path | Current State | Known Issues |
-| :--- | :--- | :--- | :--- |
-| Welcome / Auth | `app/index.tsx` | **Refined** | UI matched to Image 1 (built tagline, gold built, greeting). |
-| Home Dashboard | `app/(tabs)/index.tsx` | **Refined** | UI matched to Image 2 (Day 12, Power Level, Daily Missions list). |
-| Training Hub | `app/(tabs)/train.tsx` | **Refined** | UI matched to Image 3 (Jaw & Face Level lock/unlock system). |
-| Plans / Prime | `app/plans.tsx` | **Refined** | UI matched to Image 3 (Grind/Alpha/Sigma tiers + Free Trial). |
-| Settings Screen | `app/settings.tsx` | **Working** | Grouped settings (Account, Security, etc.) per design. |
-| User Profile | `app/(tabs)/profile.tsx`| **Working** | User dashboard stats, streak, power level and badge grid. |
-| Social Section | `app/(tabs)/social.tsx`| **Working** | Sub-tabs for Audit (Platform/AI) and Brotherhood (Community feed). |
-| Emergency Mode | `app/emergency.tsx` | **Working** | Breathing exercises and panic tasks for NoFap. |
-| Exercise Session | `app/exercise.tsx` | **Working** | Premium timer UI with sets and XP logic. |
-| Stats / Goals / OTP | `app/*.tsx` | **Working** | Onboarding screens for goal selection, weakspots, and OTP. |
-| Global Audit & Stability | `GITHUB_ISSUE.md` | **Fixed** | Fixed critical dependency loss and implicit-any TypeScript errors. |
+### Backend
+- **Framework:** Python 3.x with FastAPI
+- **Database:** MongoDB (via Motor async driver)
+- **Models:** Pydantic
+- **Security:** JWT (jose), Passlib (bcrypt pending)
+- **Server:** Uvicorn
+
+## Supabase Project
+**URL:** https://kfnizyhcanjrymjwukqz.supabase.co
+*Note: Infrastructure exists but is not yet fully integrated into the code; the backend currently points to MongoDB.*
+
+**Existing Tables (identified from types/DB calls):**
+- `users`, `profiles`, `subscriptions`
+- `exercises`, `training_programs`, `user_programs`, `workout_completions`
+- `daily_missions`, `habit_completions`, `streaks`, `xp_log`
+- `nofap_log`, `mood_log`, `badges`
+- `pricing_config`, `plan_features`, `support_tickets`
+- `community_posts`, `post_respects`
+- `profile_audits`, `face_coach_sessions`, `conversation_sessions`
+- `looksmaxx_guides`, `habit_education`, `nutrition_guides`, `supplement_catalog`, `supplement_stacks`
+- `mentors`, `wisdom_cards`, `wisdom_favorites`, `notifications`, `body_measurements`, `admin_logs`
+
+## What Is Already Built
+| Screen/Feature | File Path | What it does | State | Known Issues |
+| :--- | :--- | :--- | :--- | :--- |
+| Welcome / Auth | `app/index.tsx` | Landing, Login, and Signup forms | **Working** | None |
+| OTP Verification | `app/otp.tsx` | Submits 6-digit code for signup | **Working** | OTP is hardcoded to "123456" in backend |
+| Goals Selection | `app/goals.tsx` | Onboarding Goal selection | **Working** | UI selection only; not yet saved to DB |
+| Weak Spots | `app/weakspots.tsx` | Onboarding Weak spot assessment | **Working** | UI selection only; not yet saved to DB |
+| Physical Stats | `app/stats.tsx` | Height, Weight, Sleep, Activity level | **Working** | UI selection only; not yet saved to DB |
+| Subscription Plans | `app/plans.tsx` | Tier selection (Grind/Alpha/Sigma) | **Working** | Checkout flow is mocked |
+| Home Dashboard | `app/(tabs)/index.tsx` | XP progress, Missions, Wisdom | **Working** | XP Toast logic is local; not synced to DB |
+| Training Hub | `app/(tabs)/train.tsx` | Jaw/Face, Body, Health, NoFap | **Working** | NoFap tracker is active; others are UI-only |
+| Exercise Session | `app/exercise.tsx` | Hold/Rest timer UI for training | **Working** | Completion XP is local-only |
+| Emergency Mode | `app/emergency.tsx` | Panic mode breathing/task checklist | **Working** | None |
+| Brotherhood Feed | `app/(tabs)/social.tsx` | Basic community post grid | **Working** | Mock data only; no real posting yet |
+| Profile Audit UI | `app/(tabs)/social.tsx` | Bio input and AI audit result mockup | **Working** | No real AI analysis integrated yet |
+| User Profile | `app/(tabs)/profile.tsx` | User stats, levels, and badges | **Working** | Data is largely pulled from `mockData.ts` |
+| Settings | `app/settings.tsx` | Account, Security, Appearance toggles | **Working** | Sign out, Theme toggle work; others UI-only |
+| Supplements | `app/supplements.tsx` | Display list of recommended stacks | **Working** | Static content |
+| Support | `app/support.tsx` | Contact info and Ticket form UI | **Partial** | Form does not yet submit to backend |
 
 ## What Is NOT Built Yet
-- **AI Face Coach Backend**: The actual AI processing engine for face analysis (Gemini/Claude API backend).
-- **Payment Gateway**: Final Stripe/Apple Pay integration for the "Prime" plans.
-- **Dating IQ Sub-tab**: Currently shows a "Coming Soon" placeholder in Social.
+- **AI Face Coach Backend:** The logic to process face uploads for analysis is missing.
+- **AI Profile Audit Backend:** Integration with Claude/Gemini API for bio analysis.
+- **Dating IQ Tab:** Currently shows "Coming Soon" placeholder in `social.tsx`.
+- **Payment Gateway:** Integration with Stripe or Apple Pay for actual purchases.
+- **Convo Simulator:** Mocked in plans but screen file does not exist.
+- **Persistent Progress:** Saving onboarding data, XP, and streaks from the frontend to the backend/Supabase.
 
-## Database Schema
-Implemented in `backend/server.py`:
-- **`users`**:
-  - `_id`: String (UUID)
-  - `email`: String (Index)
-  - `full_name`: String
-  - `date_of_birth`: String
-  - `password`: String (Hashed pending bcrypt integration)
-  - `is_verified`: Boolean
+## Auth System
+- **Current State:** Functional logic but identity-mocked.
+- **Registration:** Sends email/username to `/api/auth/register`. Stores data in MongoDB.
+- **Verification:** Uses `/api/auth/verify-otp`. Correct OTP is `123456`.
+- **Login:** Checks email in `/api/auth/login`. Returns JWT.
+- **Mocked Parts:** Proper password hashing (Bcrypt) is not implemented; OTP is hardcoded; Password field in forms is just a string check.
 
-## Environment Variables Needed
-- **Frontend (`frontend/.env`)**:
-  - `EXPO_PUBLIC_BACKEND_URL`: Usually `http://localhost:8000` or production URL.
-- **Backend (`backend/.env`)**:
-  - `MONGO_URL`: MongoDB connection string.
-  - `DB_NAME`: `maxx_app`
+## Navigation Structure
+- **Root Stack (`_layout.tsx`)**
+    - `index` (Welcome/Auth)
+    - `otp` (Verify)
+    - `goals` -> `weakspots` -> `stats` -> `plans` (Onboarding)
+    - `(tabs)` (Main App)
+        - `index` (Home)
+        - `train` (Training Hub)
+        - `social` (Community/Audit)
+        - `profile` (Stats/Badges)
+    - `exercise` (Modal)
+    - `emergency` (Full Screen Modal)
+    - `settings`, `support`, `supplements` (Nested Stack)
 
-## Automation Scripts
-Run these from the root directory:
-- `npm run dev:frontend`: Starts Expo.
-- `npm run dev:backend`: Starts FastAPI server.
-- `npm run install:all`: Installs both Frontend and Backend dependencies.
+## Backend Endpoints
+- `POST /api/auth/register`: Initiates signup, stores pending user.
+- `POST /api/auth/verify-otp`: Confirms OTP, creates user record, issues JWT.
+- `POST /api/auth/login`: Authenticates user, returns JWT.
+- `GET /status`: Simple API health check.
 
-## Exact Next Steps for Incoming Agent
-1. **Bcrypt Integration**: Enhance the `register` and `login` handlers in `server.py` with real password hashing.
-2. **User Data Persistence**: Create `/api/user/progress` endpoints to save NoFap streaks and completed workouts.
-3. **AI Module Setup**: Initialize the AI Engine (Claude/Gemini) logic for the "AI Face Coach" baseline analysis.
-4. **Onboarding Sync**: Ensure the choices made in `goals.tsx` and `weakspots.tsx` are posted to the user's profile on first completion.
+## Database Tables
+The project uses **MongoDB** currently via the FastAPI backend.
+- `pending_users`: Temp storage for OTP verification.
+- `users`: Core account data.
 
-## Developer Info
-App name: MAXX
-Developer: Ziad Sabry
-GitHub: https://github.com/CultLeaderZiad/maxx-app
-LinkedIn: https://www.linkedin.com/in/ziad-sabry-cl/
+*Note: The user intends to migrate/sync with Supabase tables listed in the Supabase Project section.*
+
+## Environment Variables
+- **Frontend (`.env`):**
+    - `EXPO_PUBLIC_BACKEND_URL`: URL for the Python API.
+- **Backend (`.env`):**
+    - `MONGO_URL`: Connection string.
+    - `DB_NAME`: Database identifier.
+    - `JWT_SECRET`: Used for token signing.
+
+## Plan System
+Tiers defined in `mockData.ts` and `plans.tsx`:
+- **GRIND ($9.99/mo):** Base training and trackers.
+- **ALPHA ($19.99/mo):** Adds limited AI audits, Face Coach, and Brotherhood.
+- **SIGMA ($34.99/mo):** Unlimited everything, early access, Sigma badge.
+*Current State: Locking is UI-based (displaying lock icons) but not yet enforced on the backend.*
+
+## Known Issues
+- No real password hashing (security risk).
+- Hardcoded OTP (logic bypass).
+- Onboarding choices don't persist after closing the app unless login is successful.
+- "Dating IQ" and "Convo Simulator" are UI stubs.
+
+## Next Steps for Incoming Agent
+1. **Implement Bcrypt:** Replace the simple password check in `backend/server.py` with proper hashing.
+2. **Persistence Layer:** Update `goals.tsx`, `weakspots.tsx`, and `stats.tsx` to POST data to a new `/api/user/profile` endpoint.
+3. **Supabase Integration:** Connect the frontend and backend directly to Supabase to utilize the pre-defined table structure.
+4. **AI Module:** Initialize the Gemini/Claude API integration for the Profile Audit feature.
+5. **Real-time NoFap:** Ensure the NoFap counter in `(tabs)/train.tsx` syncs with the server so it doesn't reset on app reinstall.
+6. **Payment Flow:** Hook up the `plans.tsx` buttons to a real Stripe/RevenueCat checkout.
