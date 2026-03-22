@@ -3,32 +3,17 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/context/ThemeContext';
-import { useAuth } from '../src/context/AuthContext';
 import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
-import { PLAN_OPTIONS } from '../src/constants/mockData';
 
 export default function PlansScreen() {
   const { theme } = useTheme();
   const router = useRouter();
-  const { completeOnboarding } = useAuth();
   const [selectedPlan, setSelectedPlan] = useState('alpha');
-  const [loading, setLoading] = useState(false);
 
-  const handleSelect = async (planKey: string) => {
+  const handleSelect = (planKey: string, price: string) => {
     setSelectedPlan(planKey);
-    setLoading(true);
-    try {
-      await AsyncStorage.setItem('maxx_selected_plan', planKey);
-      await completeOnboarding();
-      router.replace('/(tabs)');
-    } catch {
-      // Fail silently
-    } finally {
-      setLoading(false);
-    }
+    router.push({ pathname: '/payment', params: { plan: planKey, price } });
   };
 
   return (
@@ -131,7 +116,7 @@ export default function PlansScreen() {
               </View>
 
               <TouchableOpacity
-                onPress={() => handleSelect(plan.key)}
+                onPress={() => handleSelect(plan.key, plan.price)}
                 style={[
                     styles.planBtn,
                     {
@@ -164,24 +149,8 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   scroll: { padding: SPACING.lg, gap: SPACING.md },
   title: { fontSize: 28 },
-  sub: { fontSize: 14, marginBottom: SPACING.md },
   planCard: { borderRadius: RADIUS.lg, padding: SPACING.md },
   planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   planName: { fontSize: 20 },
-  planRight: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: RADIUS.pill },
-  badgeText: { fontSize: 9, color: '#0A0A0A', textTransform: 'uppercase', letterSpacing: 0.5 },
-  freePill: { borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2, borderRadius: RADIUS.pill },
-  freeText: { fontSize: 9, letterSpacing: 0.5 },
-  price: { fontSize: 24, marginTop: SPACING.sm },
-  priceUnit: { fontSize: 14, color: '#9A9A9A' },
-  featureList: { marginTop: SPACING.md, gap: 8 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  featureText: { fontSize: 13 },
-  selectBtn: { height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', marginTop: SPACING.md },
-  selectBtnText: { color: '#0A0A0A', fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 },
-  selectBtnOutline: { height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', marginTop: SPACING.md, borderWidth: 1 },
-  selectBtnOutlineText: { fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 },
   planBtn: { borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  disclaimer: { fontSize: 12, textAlign: 'center', marginTop: SPACING.md },
 });
