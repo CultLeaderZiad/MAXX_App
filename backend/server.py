@@ -5,11 +5,12 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from supabase import create_client, Client
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
@@ -450,4 +451,5 @@ async def shutdown_db_client():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=PORT, reload=False)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)
