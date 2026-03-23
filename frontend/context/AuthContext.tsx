@@ -20,7 +20,7 @@ type AuthContextType = {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
-  signUp: (email: string, password: string, fullName: string, phone: string, dob: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, phone: string, dob: string) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<{ error: any }>;
@@ -115,9 +115,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       },
     });
     
-    // If auto-confirm is off, or requires OTP, we might not have a session yet.
-    // If we do have a session (and profile trigger worked), we are good.
-    return { error };
+    return { data, error };
   };
 
   const signIn = async (email: string, password: string) => {

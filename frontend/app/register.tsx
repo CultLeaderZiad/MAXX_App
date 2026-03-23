@@ -21,7 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import PhoneInput from 'react-native-phone-number-input';
 import { useTheme } from '../src/context/ThemeContext';
-import { useAuth } from '../src/context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
 
@@ -138,13 +138,7 @@ export default function RegisterWizard() {
       const dobStr = dob.toISOString().split('T')[0];
       const finalPhone = formattedPhone || phoneNumber; // Use formatted if available
 
-      const { data, error } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          data: { full_name: fullName }
-        }
-      });
+      const { data, error } = await signUp(email, password, fullName, finalPhone, dobStr);
       
       if (error) throw error;
       router.push({ pathname: '/otp', params: { email } });
@@ -343,13 +337,26 @@ export default function RegisterWizard() {
                     layout="first"
                     onChangeText={(text) => setPhoneNumber(text)}
                     onChangeFormattedText={(text) => setFormattedPhone(text)}
-                    withDarkTheme={true}
+                    withDarkTheme={false}
                     withShadow={false}
                     autoFocus={false}
                     containerStyle={[styles.phoneContainer, { backgroundColor: theme.bgInput, borderColor: theme.border }]}
                     textContainerStyle={[styles.phoneTextContainer, { backgroundColor: theme.bgInput }]}
-                    textInputStyle={{ color: theme.textPrimary, fontFamily: FONTS.regular }}
-                    codeTextStyle={{ color: theme.textPrimary, fontFamily: FONTS.regular }}
+                    textInputStyle={{ 
+                      color: theme.textPrimary, 
+                      fontFamily: FONTS.regular,
+                      fontSize: 16,
+                      height: 56,
+                    }}
+                    codeTextStyle={{ 
+                      color: theme.textPrimary, 
+                      fontFamily: FONTS.regular,
+                      fontSize: 16,
+                    }}
+                    textInputProps={{
+                      placeholderTextColor: theme.textMuted,
+                      selectionColor: theme.gold,
+                    }}
                   />
                 </View>
               </>
