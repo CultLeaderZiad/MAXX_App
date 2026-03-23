@@ -4,8 +4,17 @@
     "slug": "maxx-app",
     "version": "1.0.0",
     "owner": "cultleaderziad",
+    "updates": {
+      "url": "https://u.expo.dev/f9dbec40-974b-4ac1-8ed7-6cfd8eea1272"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "icon": "./assets/images/icon.png",
     "scheme": "maxx",
     "userInterfaceStyle": "automatic",
@@ -18,7 +27,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.cultleaderziad.maxxapp"
     },
     "web": {
       "bundler": "metro",
@@ -40,6 +50,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f9dbec40-974b-4ac1-8ed7-6cfd8eea1272"
+      }
     }
   }
 }
