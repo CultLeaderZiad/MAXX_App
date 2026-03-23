@@ -140,6 +140,16 @@ export default function WelcomeScreen() {
           No charge until Day 8 · Cancel anytime
         </Text>
       </Animated.View>
+      <Text style={{
+        color: '#444444',
+        fontSize: 11,
+        textAlign: 'center',
+        position: 'absolute',
+        bottom: 20,
+        alignSelf: 'center'
+      }}>
+        Developed by Ziad Sabry
+      </Text>
     </SafeAreaView>
   );
 }

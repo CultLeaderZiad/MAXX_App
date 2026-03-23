@@ -1,37 +1,44 @@
-import React, { useEffect } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments, Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AuthProvider } from '../context/AuthContext';
+import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Cinzel_700Bold } from '@expo-google-fonts/cinzel';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
-import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
-import { AuthProvider, useAuth } from '../context/AuthContext';
 import { PlanProvider } from '../context/PlanContext';
-import { View, ActivityIndicator } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
-function RootNav() {
-  const { theme, mode } = useTheme();
+function RootLayoutNav() {
   const { session, loading } = useAuth();
-  const segments = useSegments();
+  const { theme, mode } = useTheme();
   const router = useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
-    if (loading) return
+    if (loading) return;
 
-    const inAuthGroup = segments[0] === '(tabs)'
+    const inAuthGroup = segments[0] === '(tabs)';
 
     if (!session && inAuthGroup) {
-      router.replace('/')
+      router.replace('/');
     } else if (session && !inAuthGroup) {
-      router.replace('/(tabs)')
+      router.replace('/(tabs)');
     }
-  }, [session, loading])
+  }, [session, loading, segments]);
 
   if (loading) {
     return (
-      <View style={{ flex:1, backgroundColor:'#0A0A0A', justifyContent:'center', alignItems:'center' }}>
+      <View style={{
+        flex: 1,
+        backgroundColor: '#0A0A0A',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
         <ActivityIndicator size="large" color="#C8A96E" />
       </View>
     );
@@ -65,12 +72,15 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <PlanProvider>
-          <RootNav />
-        </PlanProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <PlanProvider>
+            <RootLayoutNav />
+          </PlanProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
+

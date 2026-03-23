@@ -6,7 +6,9 @@ import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
 import { Button } from '../src/components/Button';
+import { supabase } from '../lib/supabase';
 import { FONTS, SPACING } from '../src/constants/theme';
+
 
 export default function LoginScreen() {
   const { theme } = useTheme();
@@ -29,14 +31,12 @@ export default function LoginScreen() {
     setError('');
     
     try {
-      const res = await signIn(email, password);
-      if (res.error) {
-        setError(res.error || 'Login failed');
-      } else {
-        // Success handled by AuthContext listener -> redirects to (tabs)
-        // But we can also force it if needed, though listener is better.
-        // AuthContext usually handles the redirect in _layout.tsx based on session state.
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+      if (error) throw error;
+      // Success handled by AuthContext listener -> redirects to (tabs)
     } catch (e: any) {
       setError(e.message || 'An unexpected error occurred');
     } finally {

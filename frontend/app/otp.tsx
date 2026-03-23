@@ -8,7 +8,9 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { Button } from '../src/components/Button';
+
 import { FONTS, SPACING } from '../src/constants/theme';
 
 export default function OTPScreen() {
@@ -101,19 +103,17 @@ export default function OTPScreen() {
   };
 
   const handleVerify = async (fullCode?: string) => {
-    const otp = fullCode || code.join('');
-    if (otp.length !== 6) { setError('Enter all 6 digits'); shake(); return; }
+    const otpCode = fullCode || code.join('');
+    if (otpCode.length !== 6) { setError('Enter all 6 digits'); shake(); return; }
     setLoading(true);
     try {
-      const res = await verifyOtp(params.email as string, otp);
-      if (res.success) {
-        await promptBiometric();
-      } else {
-        setError(res.error || 'Invalid code');
-        shake();
-        setCode(['', '', '', '', '', '']);
-        inputs.current[0]?.focus();
-      }
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: params.email as string,
+        token: otpCode,
+        type: 'email'
+      });
+      if (error) throw error;
+      router.replace('/(tabs)');
     } catch (e: any) {
       setError(e?.message || 'Verification failed');
       shake();

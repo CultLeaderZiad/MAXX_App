@@ -22,7 +22,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import PhoneInput from 'react-native-phone-number-input';
 import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
+
 import { Button } from '../src/components/Button';
 
 const { width } = Dimensions.get('window');
@@ -43,8 +45,12 @@ export default function RegisterWizard() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [dob, setDob] = useState(new Date(2000, 2, 15)); // Default ~22-25 years ago
+  const today = new Date();
+  const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+  const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+  const [dob, setDob] = useState(new Date(today.getFullYear() - 22, today.getMonth(), today.getDate()));
   const [showDatePicker, setShowDatePicker] = useState(false);
+
   const [phoneNumber, setPhoneNumber] = useState('');
   const [formattedPhone, setFormattedPhone] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -132,36 +138,16 @@ export default function RegisterWizard() {
       const dobStr = dob.toISOString().split('T')[0];
       const finalPhone = formattedPhone || phoneNumber; // Use formatted if available
 
-      const res = await signUp(email, password, fullName);
-      
-      if (res.error) {
-        if (res.error.includes('already registered')) {
-            setError('This email is taken. Sign in instead?');
-        } else {
-            setError(res.error || 'Registration failed');
+      const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: { full_name: fullName }
         }
-      } else {
-        // Success -> OTP or Home
-        // AuthContext handles routing usually, or we do it here.
-        // If requiresOtp is true (from Phase 1 server), we go to OTP.
-        // Assuming AuthContext signUp returns { error } only based on my implementation?
-        // Wait, AuthContext implementation: return { error }. 
-        // If no error, we check session?
-        // Actually, for email signup in Supabase, if confirm enabled, we might need to check.
-        // Let's assume successful signup leads to OTP if email confirmation is on, 
-        // or direct login if not.
-        // My AuthContext implementation just returned { error }.
-        // I should update AuthContext to return more info or just handle no error.
-        
-        // Let's assume we go to OTP page to "Verify Email" if Supabase sends one.
-        // Or if we implemented the custom OTP flow in Phase 3? 
-        // Phase 3 says "OTP SCREEN... We sent a 6-digit code". 
-        // This implies we are using Supabase Auth with email OTP? 
-        // Or my custom Python backend OTP?
-        // Phase 1 setup used Supabase Auth. Supabase Auth handles OTP internally via `verifyOtp`.
-        
-        router.push({ pathname: '/otp', params: { email } });
-      }
+      });
+      
+      if (error) throw error;
+      router.push({ pathname: '/otp', params: { email } });
     } catch (e: any) {
       setError(e.message || 'An unexpected error occurred');
     } finally {
@@ -337,13 +323,13 @@ export default function RegisterWizard() {
                   {showDatePicker && (
                     <DateTimePicker
                       value={dob}
+                      maximumDate={maxDate}
+                      minimumDate={minDate}
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      maximumDate={new Date(new Date().setFullYear(new Date().getFullYear() - 18))}
-                      minimumDate={new Date(new Date().setFullYear(new Date().getFullYear() - 100))}
-                      onChange={(event, selectedDate) => {
+                      onChange={(event, date) => {
                         setShowDatePicker(false);
-                        if (selectedDate) setDob(selectedDate);
+                        if (date) setDob(date);
                       }}
                     />
                   )}
