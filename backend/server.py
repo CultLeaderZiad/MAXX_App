@@ -352,14 +352,14 @@ async def moderate_post(request: Request, req: ModeratePostRequest, current_user
 @limiter.limit("60/minute")
 async def profile_audit(request: Request, req: ProfileAuditRequest, current_user: dict = Depends(get_current_user)):
     model = genai.GenerativeModel('gemini-1.5-flash')
-    res = model.generate_content(f"Audit this social media bio for {req.platform}: {req.bio_text}. Return JSON with score, good_points, bad_points, suggestion_before, suggestion_after.")
+    res = model.generate_content(f"Audit this social media bio for {req.platform}: {req.bio}. Return JSON with score, good_points, bad_points, suggestion_before, suggestion_after.")
     try:
         text = res.text.replace("```json", "").replace("```", "").strip()
         data = json.loads(text)
         supabase.table("profile_audits").insert({
             "user_id": current_user["id"],
             "platform": req.platform,
-            "bio_text": req.bio_text,
+            "bio_text": req.bio,
             "result": data
         }).execute()
         return data
@@ -367,13 +367,13 @@ async def profile_audit(request: Request, req: ProfileAuditRequest, current_user
         return JSONResponse(status_code=500, content={"error": "AI Audit failed."})
 
 @app.post("/api/ai/recalculate-power")
-async def recalculate_power(req: RecalculatePowerRequest):
+async def recalculate_power_ai(req: RecalculatePowerRequest):
     # Logic: Get workout count, nofap streak, etc. from Supabase
     # For now, return a mock calculation
     return {"power_level": 12, "rank": "Initiate", "next_rank_xp": 500}
 
 @app.post("/api/ai/supplement-stack")
-async def supplement_stack(req: SupplementStackRequest):
+async def supplement_stack_ai(req: SupplementStackRequest):
     if not GEMINI_API_KEY: return {"stack": ["Creatine", "Magnesium", "Zinc"], "reason": "AI offline"}
     model = genai.GenerativeModel('gemini-1.5-flash')
     prompt = f"Create a supplement stack for a man with goals: {req.goals}. Plan: {req.current_plan}. Be precise."
@@ -381,7 +381,7 @@ async def supplement_stack(req: SupplementStackRequest):
     return {"stack": res.text}
 
 @app.post("/api/ai/profile-audit")
-async def profile_audit(req: ProfileAuditRequest):
+async def profile_audit_ai(req: ProfileAuditRequest):
     if not GEMINI_API_KEY: return {"analysis": "Looks good.", "score": 75}
     model = genai.GenerativeModel('gemini-1.5-flash')
     prompt = f"Audit this {req.platform} profile bio: {req.bio}. Give 3 tips and a score 0-100."
@@ -389,7 +389,7 @@ async def profile_audit(req: ProfileAuditRequest):
     return {"analysis": res.text, "score": 82}
 
 @app.post("/api/ai/moderate-post")
-async def moderate_post(req: ModeratePostRequest):
+async def moderate_post_ai(req: ModeratePostRequest):
     # Quick filter
     banned = ["scam", "spam", "porn", "hate"]
     if any(w in req.content.lower() for w in banned):

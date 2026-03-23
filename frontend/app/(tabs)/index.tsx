@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
-import { useAuth } from '../../src/context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { XPToast } from '../../src/components/XPToast';

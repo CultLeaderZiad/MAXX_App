@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../src/context/ThemeContext';
-import { useAuth } from '../src/context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../src/components/Button';
 import { ThemeToggle } from '../src/components/ThemeToggle';
 import { FONTS, SPACING } from '../src/constants/theme';
@@ -54,7 +54,7 @@ function GoldParticle({ delay, startX }: { delay: number; startX: number; key?: 
 
 export default function WelcomeScreen() {
   const { theme } = useTheme();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, signInAsAdmin } = useAuth();
   const router = useRouter();
   const letters = ['M', 'A', 'X', 'X'];
   const letterAnims = useRef(letters.map(() => new Animated.Value(0))).current;
@@ -109,6 +109,18 @@ export default function WelcomeScreen() {
         <ThemeToggle />
       </View>
       <View style={styles.content}>
+        <Animated.Image 
+          source={require('../assets/images/icon.png')}
+          style={[
+            styles.logoImage,
+            {
+              opacity: letterAnims[0],
+              transform: [{
+                scale: letterAnims[0].interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] })
+              }]
+            }
+          ]}
+        />
         <View style={styles.logoRow}>
           {letters.map((char, i) => (
             <Animated.Text 
@@ -139,6 +151,19 @@ export default function WelcomeScreen() {
         <Text style={[styles.subtext, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
           No charge until Day 8 · Cancel anytime
         </Text>
+        
+        {/* Development Bypass */}
+        <TouchableOpacity 
+          onPress={() => {
+            signInAsAdmin();
+            router.replace('/(tabs)');
+          }}
+          style={{ marginTop: 12, opacity: 0.6 }}
+        >
+          <Text style={{ color: theme.gold, fontSize: 11, textAlign: 'center', textDecorationLine: 'underline' }}>
+            ADMIN / TESTER QUICK ACCESS
+          </Text>
+        </TouchableOpacity>
       </Animated.View>
       <Text style={{
         color: '#444444',
@@ -158,6 +183,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   topRight: { position: 'absolute', top: 60, right: 16, zIndex: 10 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg },
+  logoImage: { width: 120, height: 120, borderRadius: 24, marginBottom: 24 },
   logoRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   logoChar: { fontSize: 80, letterSpacing: 4 },
   tagline: { fontSize: 18, marginTop: SPACING.md, textAlign: 'center', opacity: 0.9 },

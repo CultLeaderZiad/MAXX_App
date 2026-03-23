@@ -7,7 +7,7 @@ import { TouchableOpacity } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/context/ThemeContext';
-import { useAuth } from '../src/context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Button } from '../src/components/Button';
 
@@ -15,10 +15,10 @@ import { FONTS, SPACING } from '../src/constants/theme';
 
 export default function OTPScreen() {
   const { theme } = useTheme();
-  const { verifyOtp } = useAuth();
+  const { verifyOtp, signInAsAdmin } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ email: string }>();
-  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [code, setCode] = useState(['', '', '', '', '', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
@@ -47,13 +47,13 @@ export default function OTPScreen() {
       const digits = text.split('').slice(0, 6);
       const newCode = [...code];
       digits.forEach((d, i) => {
-        if (index + i < 6) newCode[index + i] = d;
+        if (index + i < 8) newCode[index + i] = d;
       });
       setCode(newCode);
-      if (digits.length === 6) {
+      if (digits.length === 8) {
         handleVerify(newCode.join(''));
       } else {
-        const nextIndex = Math.min(index + digits.length, 5);
+        const nextIndex = Math.min(index + digits.length, 7);
         inputs.current[nextIndex]?.focus();
       }
       return;
@@ -64,10 +64,10 @@ export default function OTPScreen() {
     setCode(newCode);
     setError('');
     
-    if (text && index < 5) {
+    if (text && index < 7) {
       inputs.current[index + 1]?.focus();
     }
-    if (index === 5 && text) {
+    if (index === 7 && text) {
       handleVerify(newCode.join(''));
     }
   };
@@ -102,18 +102,56 @@ export default function OTPScreen() {
     }
   };
 
+  const handleLinkVerified = async () => {
+    setLoading(true);
+    try {
+      // Try to get session - if the user clicked the link in browser, 
+      // they might already be logged in if deep linking worked, 
+      // or we can try to sign them in if we have the email.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.replace('/(tabs)');
+      } else {
+        setError('Verification not detected yet. Please click the link in your email first.');
+        shake();
+      }
+    } catch (e) {
+      setError('Could not refresh session.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDevBypass = () => {
+    // For testing/admin bypass: go straight to dashboard with a mock session
+    Alert.alert(
+      "Admin Mode",
+      "Login as Admin/Tester and view all features?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Enter App", 
+          onPress: () => {
+            signInAsAdmin();
+            router.replace('/(tabs)');
+          } 
+        }
+      ]
+    );
+  };
+
   const handleVerify = async (fullCode?: string) => {
     const otpCode = fullCode || code.join('');
-    if (otpCode.length !== 6) { setError('Enter all 6 digits'); shake(); return; }
+    if (otpCode.length < 6) { setError('Please enter your code'); shake(); return; }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email: params.email as string,
         token: otpCode,
-        type: 'email'
+        type: 'signup'
       });
       if (error) throw error;
-      router.replace('/(tabs)');
+      // SUCCESS! Auth listener in _layout will handle redirect
     } catch (e: any) {
       setError(e?.message || 'Verification failed');
       shake();
@@ -133,7 +171,7 @@ export default function OTPScreen() {
         <View style={styles.content}>
           <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Verify It's You</Text>
           <Text style={[styles.sub, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
-            Enter the 6-digit code sent to{'\n'}{params.email || 'your email'}
+            Enter the code or click the <Text style={{ color: theme.gold, fontWeight: 'bold' }}>Verification Link</Text> sent to{'\n'}{params.email || 'your email'}
           </Text>
           
           <Animated.View style={[styles.codeRow, { transform: [{ translateX: shakeAnim }] }]}>
@@ -149,6 +187,7 @@ export default function OTPScreen() {
                     color: theme.textPrimary,
                     borderColor: error ? theme.red : digit ? theme.borderActive : theme.border,
                     fontFamily: FONTS.bold,
+                    width: 38, // Slightly smaller to fit 8 boxes
                   },
                 ]}
                 value={digit}
@@ -156,13 +195,13 @@ export default function OTPScreen() {
                 onKeyPress={(e) => handleKeyPress(e, i)}
                 keyboardType="number-pad"
                 textContentType="oneTimeCode"
-                maxLength={6} // Allow paste of full code in first box
+                maxLength={8} // Allow paste of full code
                 selectTextOnFocus
               />
             ))}
           </Animated.View>
           
-          {error ? <Text style={[styles.error, { fontFamily: FONTS.medium }]}>{error}</Text> : null}
+          {error ? <Text style={[styles.error, { fontFamily: FONTS.medium, marginTop: 24 }]}>{error}</Text> : null}
           
           <Text style={[styles.resend, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
             {countdown > 0 ? `Resend code in ${formatTime(countdown)}` : ''}
@@ -174,7 +213,14 @@ export default function OTPScreen() {
           )}
         </View>
         <View style={styles.bottom}>
-          <Button title="VERIFY" onPress={() => handleVerify()} loading={loading} testID="otp-verify-btn" />
+          <Button title="VERIFY CODE" onPress={() => handleVerify()} loading={loading} testID="otp-verify-btn" style={{ marginBottom: 12 }} />
+          <TouchableOpacity onPress={handleLinkVerified} style={styles.linkVerifyBtn}>
+            <Text style={[styles.linkVerifyText, { color: theme.gold }]}>I clicked the verification link</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity onPress={handleDevBypass} style={{ marginTop: 24, alignSelf: 'center', opacity: 0.5 }}>
+            <Text style={{ color: theme.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>ADMIN/TESTER BYPASS</Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -193,4 +239,6 @@ const styles = StyleSheet.create({
   resend: { fontSize: 13, marginTop: SPACING.lg, textAlign: 'center' },
   resendActive: { fontSize: 14, textAlign: 'center', marginTop: SPACING.sm },
   bottom: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl },
+  linkVerifyBtn: { alignItems: 'center', paddingVertical: 8 },
+  linkVerifyText: { fontSize: 14, fontFamily: FONTS.semiBold, textDecorationLine: 'underline' },
 });

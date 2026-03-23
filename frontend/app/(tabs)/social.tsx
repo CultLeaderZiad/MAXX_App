@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../src/context/ThemeContext';
-import { useAuth } from '../../src/context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';

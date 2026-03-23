@@ -6,7 +6,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../src/context/ThemeContext';
-import { useAuth } from '../src/context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../src/components/Button';
 import { XPToast } from '../src/components/XPToast';
 import { CaptainCard } from '../src/components/CaptainCard';

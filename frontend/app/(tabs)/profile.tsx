@@ -7,7 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Circle, Defs, Stop, LinearGradient as SvgGradient } from 'react-native-svg';
 import { useTheme } from '../../src/context/ThemeContext';
-import { useAuth } from '../../src/context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { supabase } from '../../lib/supabase';
