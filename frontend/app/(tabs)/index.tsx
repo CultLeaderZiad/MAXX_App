@@ -25,6 +25,7 @@ export default function HomeScreen() {
   const powerLevelAnim = useRef(new Animated.Value(0)).current;
   const xpFloatAnim = useRef(new Animated.Value(0)).current;
   const [xpFloatVisible, setXpFloatVisible] = useState(false);
+  const [trialDismissed, setTrialDismissed] = useState(false);
 
   useEffect(() => {
     fetchHomeData();
@@ -100,7 +101,6 @@ export default function HomeScreen() {
             { id: '2', title: 'Posture check — 5 minutes', xp: 30, completed: false },
             { id: '3', title: 'Read today wisdom card', xp: 30, completed: false }
           ],
-          total_count: 3,
           completed_count: 0
         };
         const { data: createdMissions, error: mErr } = await supabase.from('daily_missions').insert(newMissions).select().single();
@@ -222,7 +222,6 @@ export default function HomeScreen() {
   const xpForNextLevel = 1000; // Simplified
   const xpProgress = Math.min(1, (currentTotalXp % xpForNextLevel) / xpForNextLevel);
 
-  const [trialDismissed, setTrialDismissed] = useState(false);
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="home-screen">
@@ -293,7 +292,7 @@ export default function HomeScreen() {
           <View style={styles.missionHeader}>
             <Text style={[styles.missionTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>Today's Mission</Text>
             <View>
-               <Text style={[{ color: theme.gold, fontFamily: FONTS.semiBold, fontSize: 12 }]}>{missions?.completed_count || 0}/{missions?.total_count || 0} done</Text>
+               <Text style={[{ color: theme.gold, fontFamily: FONTS.semiBold, fontSize: 12 }]}>{missions?.completed_count || 0}/{missions?.tasks?.length || 0} done</Text>
             </View>
           </View>
           

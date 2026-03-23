@@ -3,13 +3,25 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
 type PlanFeature = {
-  id: string;
+  id?: string;
   plan: string;
   feature_key: string;
-  feature_name: string;
+  feature_name?: string;
   is_enabled: boolean;
   limit_value: number | null;
 };
+
+const DEFAULT_PLAN_FEATURES: PlanFeature[] = [
+  { plan: 'trial', feature_key: 'jaw_training', is_enabled: true, limit_value: null },
+  { plan: 'trial', feature_key: 'nofap_tracker', is_enabled: true, limit_value: null },
+  { plan: 'trial', feature_key: 'daily_wisdom', is_enabled: true, limit_value: 3 },
+  { plan: 'grind', feature_key: 'jaw_training', is_enabled: true, limit_value: null },
+  { plan: 'grind', feature_key: 'body_programs', is_enabled: true, limit_value: null },
+  { plan: 'alpha', feature_key: 'face_coach', is_enabled: true, limit_value: 4 },
+  { plan: 'alpha', feature_key: 'profile_audit', is_enabled: true, limit_value: 3 },
+  { plan: 'sigma', feature_key: 'convo_lab', is_enabled: true, limit_value: null },
+  { plan: 'sigma', feature_key: 'face_coach', is_enabled: true, limit_value: null },
+]
 
 type PlanContextType = {
   plan: string;
@@ -40,29 +52,29 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchFeatures = async () => {
     try {
-      // Fetch features for the current plan
       const { data, error } = await supabase
         .from('plan_features')
         .select('*')
-        .eq('plan', plan);
+        .order('sort_order' as any); // use sort_order if available
 
-      if (error) {
-        console.error('Error fetching plan features:', error);
-      } else {
-        setFeatures(data || []);
-      }
-    } catch (e) {
-      console.error('Exception fetching plan features:', e);
+      if (error) throw error;
+      setFeatures(data || []);
+    } catch (err) {
+      console.log('Plan features fallback to defaults');
+      // Use hardcoded defaults so app never crashes
+      setFeatures(DEFAULT_PLAN_FEATURES);
     }
   };
 
   const canAccess = (featureKey: string) => {
-    const feature = features.find(f => f.feature_key === featureKey);
+    const fPlan = plan === 'free_trial' ? 'trial' : plan;
+    const feature = features.find(f => f.feature_key === featureKey && f.plan === fPlan);
     return feature ? feature.is_enabled : false;
   };
 
   const getLimit = (featureKey: string) => {
-    const feature = features.find(f => f.feature_key === featureKey);
+    const fPlan = plan === 'free_trial' ? 'trial' : plan;
+    const feature = features.find(f => f.feature_key === featureKey && f.plan === fPlan);
     return feature ? feature.limit_value : null;
   };
 
