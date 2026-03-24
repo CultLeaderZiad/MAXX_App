@@ -403,7 +403,7 @@ async def moderate_post_ai(req: ModeratePostRequest):
 @app.post("/api/support")
 async def support_ticket(req: SupportTicketRequest):
     if supabase:
-        supabase.table("support_tickets").insert({
+        supabase.from_("support_tickets").insert({
             "name": req.name,
             "email": req.email,
             "category": req.category,
@@ -411,6 +411,37 @@ async def support_ticket(req: SupportTicketRequest):
             "message": req.message
         }).execute()
     return {"success": True}
+
+@api_router.post("/conversation")
+@limiter.limit("60/minute")
+async def conversation(request: Request, req: ConversationRequest, user_id: str = Depends(get_current_user)):
+    """AI Convo Lab — handles scenario-based conversation practice."""
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        system_prompt = {
+            "first_date": "You are a young woman on a first date at a coffee shop. React realistically. After 8 exchanges give a score 1-10 and honest feedback.",
+            "cold_approach": "You are a busy young woman on the street. A man just stopped you. React naturally — sometimes engaged, sometimes skeptical. After 6 exchanges give feedback.",
+            "salary_negotiation": "You are a hiring manager. The candidate is negotiating salary. Be firm but fair. After 6 exchanges give feedback.",
+            "conflict_frame": "You are a peer who disagrees strongly. Push back. After 6 exchanges give feedback on how well he held his frame.",
+            "group_social": "You are part of a group. The user is joining. React naturally. After 8 exchanges give a score and feedback.",
+            "texting_game": "You are a girl who met this guy once. He is texting you. You are slightly interested but testing. After 6 texts give whether he could have gotten a date.",
+        }.get(req.scenario, "React naturally. After 6 exchanges give honest feedback.")
+        
+        conversation_history = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in req.messages[-10:]])
+        prompt = f"System: {system_prompt}\n\nConversation so far:\n{conversation_history}\n\nUser just said: {req.user_message}\n\nRespond as the character (1-2 sentences max):"
+        
+        res = model.generate_content(prompt)
+        return {"reply": res.text.strip()}
+    except Exception as e:
+        logger.error(f"Conversation error: {e}")
+        fallbacks = {
+            "first_date": "That's interesting... tell me more.",
+            "cold_approach": "Oh, um... you kind of surprised me there.",
+            "salary_negotiation": "That's a bit higher than we anticipated, to be honest.",
+            "default": "Hmm, let me think about that."
+        }
+        return {"reply": fallbacks.get(req.scenario, fallbacks["default"])}
+
 
 @app.get("/")
 async def root():
