@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { supabase } from '../lib/supabase';
 import { useTheme } from '../src/context/ThemeContext';
 import { Button } from '../src/components/Button';
 import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
@@ -19,28 +20,38 @@ export default function StatsScreen() {
   const [activity, setActivity] = useState('Moderate');
   const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('cm');
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
-  const { goals, weak_spots } = require('expo-router').useLocalSearchParams();
-  const { api } = require('../src/services/api');
+  const [loading, setLoading] = useState(false);
+
 
   const handleContinue = async () => {
+    setLoading(true);
     try {
-      const goalsData = await AsyncStorage.getItem('onboarding_goals');
-      const weakSpotsData = await AsyncStorage.getItem('onboarding_weak_spots');
-      
-      const payload = {
-        goals: JSON.parse(goalsData || '[]'),
-        weak_spots: JSON.parse(weakSpotsData || '[]'),
-        height_cm: heightUnit === 'cm' ? height : Math.round(height * 2.54),
-        weight_kg: weightUnit === 'kg' ? weight : Math.round(weight / 2.205),
-        sleep_hours: sleep,
-        activity_level: activity,
-      };
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in');
 
-      await api.post('/api/user/onboarding', payload);
+      const goalsRaw = await AsyncStorage.getItem('onboarding_goals');
+      const weakSpotsRaw = await AsyncStorage.getItem('onboarding_weak_spots');
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          goals: JSON.parse(goalsRaw || '[]'),
+          weak_spots: JSON.parse(weakSpotsRaw || '[]'),
+          height_cm: heightUnit === 'cm' ? height : Math.round(height * 2.54),
+          weight_kg: weightUnit === 'kg' ? weight : Math.round(weight / 2.205),
+          sleep_hours: sleep,
+          activity_level: activity,
+          onboarding_completed: true,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
       router.push('/plans');
-    } catch(e: any) {
+    } catch (e: any) {
       console.error(e);
-      Alert.alert('Save Failed', 'Failed to save, try again');
+      Alert.alert('Save Failed', e.message || 'Failed to save, try again');
+    } finally {
+      setLoading(false);
     }
   };
 
