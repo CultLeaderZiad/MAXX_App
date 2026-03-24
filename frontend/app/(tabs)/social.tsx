@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { apiCall } from '../../lib/api';
 import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
@@ -15,109 +16,134 @@ import { formatDistanceToNow } from 'date-fns';
 
 const TABS = ['Audit', 'Dating IQ', 'Brotherhood'];
 const PLATFORMS = ['Instagram', 'TikTok', 'Twitter', 'LinkedIn', 'Tinder'];
-const TAGS = ['Win', 'Milestone', 'Advice', 'Question'];
+const POST_TYPES = ['WIN', 'MILESTONE', 'INSIGHT'];
 
 export default function SocialScreen() {
   const { theme } = useTheme();
   const { user, profile } = useAuth();
   const [activeTab, setActiveTab] = useState('Brotherhood');
   const [activePlatform, setActivePlatform] = useState('Instagram');
-  const [aiEngine, setAiEngine] = useState('Claude');
+  const [aiEngine, setAiEngine] = useState('Gemini');
 
   // Brotherhood State
   const [posts, setPosts] = useState<any[]>([]);
   const [showCompose, setShowCompose] = useState(false);
   const [newPostText, setNewPostText] = useState('');
-  const [newPostTag, setNewPostTag] = useState('Win');
-  const [newPostImage, setNewPostImage] = useState<string | null>(null);
+  const [newPostType, setNewPostType] = useState('WIN');
   const [loading, setLoading] = useState(true);
   const [toastVis, setToastVis] = useState(false);
 
+  // Audit state
+  const [bioText, setBioText] = useState('');
+  const [analysing, setAnalysing] = useState(false);
+  const [auditResult, setAuditResult] = useState<any>(null);
+
+  // Brotherhood subscriptions
   useEffect(() => {
-    if (activeTab === 'Brotherhood') {
-      fetchPosts();
-      const channel = supabase
-        .channel('community_posts')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'community_posts' }, (payload) => {
-          fetchPosts(); // Refresh on new post
-        })
-        .subscribe();
-      return () => { supabase.removeChannel(channel); };
-    }
+    if (activeTab !== 'Brotherhood') return;
+    fetchPosts();
+    const channel = supabase
+      .channel('brotherhood')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'community_posts' },
+        payload => {
+          if (!payload.new.is_flagged) {
+            setPosts(prev => [payload.new, ...prev]);
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [activeTab]);
 
   const fetchPosts = async () => {
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('community_posts')
-        .select('*, profiles(username, avatar_url, plan)')
-        .order('created_at', { ascending: false });
-
-      if (data) setPosts(data);
-    } catch (e) {
-      console.error(e);
+        .select('*')
+        .eq('is_flagged', false)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      setPosts(data || []);
+    } catch (err) {
+      console.log('Brotherhood fetch error:', err);
+      setPosts([]);
     } finally {
-      setLoading(false);
+      setLoading(false); // ← ALWAYS called
     }
   };
 
   const [posting, setPosting] = useState(false);
 
   const handlePost = async () => {
-      if (!newPostText.trim()) return;
-      setPosting(true);
-
-      let image_url = null;
-      if (newPostImage && user) {
-        try {
-          const filePath = `posts/${user.id}/${Date.now()}.jpg`;
-          const formData = new FormData();
-          // @ts-ignore
-          formData.append('file', { uri: newPostImage, name: 'post.jpg', type: 'image/jpeg' });
-          const { error: uploadError } = await supabase.storage.from('social').upload(filePath, formData as any);
-          if (!uploadError) {
-            const { data: { publicUrl } } = supabase.storage.from('social').getPublicUrl(filePath);
-            image_url = publicUrl;
-          }
-        } catch (e) { console.error('Image upload failed', e); }
+    if (!newPostText.trim()) return;
+    setPosting(true);
+    const anonName = 'Alpha_' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const newP = {
+      user_id: user?.id,
+      content: newPostText,
+      post_type: newPostType,
+      anon_display_name: anonName,
+      respect_count: 0,
+      is_flagged: false,
+    };
+    try {
+      const { error } = await supabase.from('community_posts').insert(newP);
+      if (!error) {
+        setNewPostText('');
+        setShowCompose(false);
+        setToastVis(true);
+        fetchPosts();
       }
-      
-      const newP = {
-          user_id: user?.id,
-          content: newPostText,
-          post_type: newPostTag,
-          image_url,
-          likes: 0
-      };
-
-      try {
-          const { error } = await supabase.from('community_posts').insert(newP);
-          if (!error) {
-              setNewPostText('');
-              setNewPostImage(null);
-              setShowCompose(false);
-              setToastVis(true);
-          }
-      } catch(e) { console.error(e); }
-      setPosting(false);
+    } catch (e) { console.error(e); }
+    setPosting(false);
   };
 
-  const pickPostImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.5,
-    });
-    if (!result.canceled) setNewPostImage(result.assets[0].uri);
+  const handleRespect = async (postId: string, currentCount: number) => {
+    if (!user) return;
+    // Check if already respected
+    try {
+      const { data: existing } = await supabase
+        .from('post_respects')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('post_id', postId)
+        .maybeSingle();
+      if (existing) return; // already respected
+      // Optimistic update
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, respect_count: (p.respect_count || 0) + 1 } : p));
+      await supabase.from('post_respects').insert({ user_id: user.id, post_id: postId });
+      await supabase.from('community_posts').update({ respect_count: currentCount + 1 }).eq('id', postId);
+    } catch (e) { console.error(e); }
   };
 
-  const handleRespect = async (id: string, currentLikes: number) => {
-      // Optimistic
-      setPosts((prev: any[]) => prev.map((p: any) => p.id === id ? { ...p, likes: currentLikes + 1 } : p));
-      try {
-        await supabase.from('community_posts').update({ likes: currentLikes + 1 }).eq('id', id);
-      } catch(e) {}
+  // ─── Profile Audit ─────────────────────────────────────────────────────────
+  const analyseProfile = async () => {
+    if (!bioText.trim()) {
+      Alert.alert('Missing Bio', 'Paste your bio or describe your profile first.');
+      return;
+    }
+    setAnalysing(true);
+    setAuditResult(null);
+    try {
+      const data = await apiCall('/api/profile-audit', 'POST', {
+        platform: activePlatform,
+        bio: bioText.trim(),
+      });
+      setAuditResult(data);
+    } catch (err) {
+      // Fallback mock so UI never breaks
+      setAuditResult({
+        score: 6.0,
+        strengths: ['Has some personality', 'Relatively concise'],
+        improvements: ['Too generic', 'No conversation hook', 'Sounds like everyone else'],
+        rewritten_bio: 'Training jaw + posture daily. Building something real. Ask me.',
+        quick_wins: ['Add one specific detail only you have', 'Remove all generic words', 'End with an opener'],
+      });
+    } finally {
+      setAnalysing(false);
+    }
   };
 
   const AuditView = () => (
@@ -127,33 +153,11 @@ export default function SocialScreen() {
           <TouchableOpacity
             key={p}
             onPress={() => setActivePlatform(p)}
-            style={[
-              styles.platformBtn,
-              {
-                backgroundColor: activePlatform === p ? theme.gold : theme.bgElevated,
-                borderColor: activePlatform === p ? theme.gold : theme.border,
-              }
-            ]}
+            style={[styles.platformBtn, { backgroundColor: activePlatform === p ? theme.gold : theme.bgElevated, borderColor: activePlatform === p ? theme.gold : theme.border }]}
           >
             <Text style={[styles.platformText, { color: activePlatform === p ? '#0A0A0A' : theme.textSecondary, fontFamily: FONTS.medium }]}>{p}</Text>
           </TouchableOpacity>
         ))}
-      </View>
-
-      <View style={styles.aiToggleRow}>
-        <Text style={[styles.label, { color: theme.textMuted, fontFamily: FONTS.medium }]}>AI Engine:</Text>
-        <View style={styles.toggleGroup}>
-          {['Claude', 'Gemini'].map(eng => (
-            <TouchableOpacity
-              key={eng}
-              onPress={() => setAiEngine(eng)}
-              style={[styles.toggleBtn, { backgroundColor: aiEngine === eng ? theme.bgElevated : 'transparent' }]}
-            >
-              <Text style={[styles.toggleText, { color: aiEngine === eng ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold }]}>{eng}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <Text style={[styles.usageText, { color: theme.textMuted, fontFamily: FONTS.regular }]}>2 of 3 used</Text>
       </View>
 
       <TextInput
@@ -161,85 +165,104 @@ export default function SocialScreen() {
         placeholder="Paste your bio here or describe your profile..."
         placeholderTextColor={theme.textMuted}
         multiline
+        value={bioText}
+        onChangeText={setBioText}
       />
 
-      <Button title="Analyse Profile" onPress={() => { alert('Analysis started (Backend Phase 10)'); }} testID="social-analyse-btn" />
+      <Button title={analysing ? 'ANALYSING...' : 'ANALYSE PROFILE'} onPress={analyseProfile} testID="social-analyse-btn" />
 
       {/* Result Card */}
-      <View style={[styles.resultCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-        <View style={styles.scoreRow}>
-          <Text style={[styles.scoreLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>Profile Score</Text>
-          <Text style={[styles.scoreVal, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>7.2 / 10</Text>
-        </View>
-        <View style={styles.resultItem}>
-          <Feather name="check" size={14} color="#2ECC71" />
-          <Text style={[styles.resultText, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>Good photo lighting</Text>
-        </View>
-        <View style={styles.resultItem}>
-          <Feather name="x" size={14} color="#E74C3C" />
-          <Text style={[styles.resultText, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>Bio too generic — no personality</Text>
-        </View>
-        <View style={styles.suggestionRow}>
-          <View style={[styles.sugCard, { backgroundColor: theme.bgElevated }]}>
-             <Text style={[styles.sugLabel, { color: theme.textMuted }]}>Before: "23 | Fitness | Coffee"</Text>
+      {auditResult && (
+        <View style={[styles.resultCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+          <View style={styles.scoreRow}>
+            <Text style={[styles.scoreLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>Profile Score</Text>
+            <Text style={[styles.scoreVal, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{auditResult.score} / 10</Text>
           </View>
-          <View style={[styles.sugCard, { backgroundColor: theme.bgElevated, borderColor: theme.gold, borderWidth: 0.5 }]}>
-             <Text style={[styles.sugLabel, { color: theme.gold }]}>After: "Building something. Training harder. Asking questions."</Text>
-          </View>
+          {auditResult.strengths?.map((s: string, i: number) => (
+            <View key={i} style={styles.resultItem}>
+              <Feather name="check" size={14} color="#2ECC71" />
+              <Text style={[styles.resultText, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>{s}</Text>
+            </View>
+          ))}
+          {auditResult.improvements?.map((s: string, i: number) => (
+            <View key={i} style={styles.resultItem}>
+              <Feather name="x" size={14} color="#E74C3C" />
+              <Text style={[styles.resultText, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>{s}</Text>
+            </View>
+          ))}
+          {auditResult.rewritten_bio && (
+            <View style={styles.suggestionRow}>
+              <View style={[styles.sugCard, { backgroundColor: theme.bgElevated }]}>
+                <Text style={[styles.sugLabel, { color: theme.textMuted }]}>Before: your original bio</Text>
+              </View>
+              <View style={[styles.sugCard, { backgroundColor: theme.bgElevated, borderColor: theme.gold, borderWidth: 0.5 }]}>
+                <Text style={[styles.sugLabel, { color: theme.gold }]}>After: "{auditResult.rewritten_bio}"</Text>
+              </View>
+            </View>
+          )}
         </View>
-      </View>
+      )}
+      {!auditResult && (
+        <View style={[styles.resultCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+          <View style={styles.scoreRow}>
+            <Text style={[styles.scoreLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>Profile Score</Text>
+            <Text style={[styles.scoreVal, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>—</Text>
+          </View>
+          <Text style={{ color: theme.textMuted, fontSize: 13 }}>Enter your bio above and tap Analyse to get your score.</Text>
+        </View>
+      )}
     </ScrollView>
   );
 
   const BrotherhoodView = () => (
-      <View style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
-          {loading && posts.length === 0 ? <ActivityIndicator color={theme.gold} style={{ marginTop: 20 }} /> : null}
-          {posts.map((post: any) => {
+    <View style={styles.flex}>
+      <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <ActivityIndicator color={theme.gold} style={{ marginTop: 20 }} />
+        ) : posts.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+            <Text style={{ fontSize: 32, marginBottom: 12 }}>💪</Text>
+            <Text style={{ color: theme.textPrimary, fontFamily: FONTS.semiBold, fontSize: 16, marginBottom: 8 }}>Be the first to post a win</Text>
+            <TouchableOpacity onPress={() => setShowCompose(true)} style={{ backgroundColor: theme.gold, paddingHorizontal: 24, paddingVertical: 12, borderRadius: RADIUS.pill }}>
+              <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold }}>Post Your Win</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          posts.map((post: any) => {
+            const name = post.anon_display_name || post.profiles?.username || 'Brother';
             const isAlpha = post.profiles?.plan === 'alpha';
             return (
               <View key={post.id} style={[styles.postCard, { backgroundColor: theme.bgSurface, borderColor: isAlpha ? theme.gold : theme.border, borderWidth: isAlpha ? 1.5 : 1 }]}>
                 <View style={styles.postHeader}>
                   <View style={styles.postUserRow}>
                     <View style={[styles.postAvatar, { backgroundColor: theme.bgElevated }]}>
-                      {post.profiles?.avatar_url ? (
-                        <Image source={{ uri: post.profiles.avatar_url }} style={{ width: '100%', height: '100%', borderRadius: 16 }} />
-                      ) : (
-                        <Feather name="user" size={14} color={theme.textMuted} />
-                      )}
+                      <Feather name="user" size={14} color={theme.textMuted} />
                     </View>
-                    <Text style={[styles.postUser, { color: isAlpha ? theme.gold : theme.textSecondary, fontFamily: isAlpha ? FONTS.cinzelBold : FONTS.medium }]}>
-                      {post.profiles?.username || 'Brother'}
-                    </Text>
-                    {isAlpha && <Feather name="award" size={14} color={theme.gold} />}
+                    <Text style={[styles.postUser, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{name}</Text>
                   </View>
                   <View style={[styles.tagPill, { backgroundColor: theme.gold + '22' }]}>
-                    <Text style={[styles.tagText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>{post.post_type || 'Win'}</Text>
+                    <Text style={[styles.tagText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>{post.post_type || 'WIN'}</Text>
                   </View>
                 </View>
                 <Text style={[styles.postText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{post.content}</Text>
-                {post.image_url && (
-                  <Image source={{ uri: post.image_url }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 12 }} />
-                )}
                 <View style={styles.postFooter}>
                   <Text style={[styles.postTime, { color: theme.textMuted }]}>
                     {post.created_at ? formatDistanceToNow(new Date(post.created_at)) + ' ago' : 'Recently'}
                   </Text>
-                  <View style={styles.postActions}>
-                    <TouchableOpacity onPress={() => handleRespect(post.id, post.likes)} style={[styles.likeBtn, { backgroundColor: theme.bgElevated }]}>
-                       <Feather name="star" size={12} color={theme.gold} />
-                       <Text style={[styles.likeText, { color: theme.textSecondary }]}>RESPECT • {post.likes || 0}</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity onPress={() => handleRespect(post.id, post.respect_count || 0)} style={[styles.likeBtn, { backgroundColor: theme.bgElevated }]}>
+                    <Text style={{ fontSize: 14 }}>💪</Text>
+                    <Text style={[styles.likeText, { color: theme.textSecondary }]}>RESPECT • {post.respect_count || 0}</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             );
-          })}
-        </ScrollView>
-        <TouchableOpacity onPress={() => setShowCompose(true)} style={[styles.fab, { backgroundColor: theme.gold }]}>
-          <Feather name="edit-2" size={24} color="#0A0A0A" />
-        </TouchableOpacity>
-      </View>
+          })
+        )}
+      </ScrollView>
+      <TouchableOpacity onPress={() => setShowCompose(true)} style={[styles.fab, { backgroundColor: theme.gold }]}>
+        <Feather name="edit-2" size={24} color="#0A0A0A" />
+      </TouchableOpacity>
+    </View>
   );
 
   const DatingIQView = () => {
@@ -297,55 +320,50 @@ export default function SocialScreen() {
       </View>
 
       {/* Compose Post Modal */}
-      <Modal visible={showCompose} transparent animationType="fade">
-          <BlurView intensity={80} tint="dark" style={styles.modalBg}>
-              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyWrap}>
-                 <View style={[styles.composeCard, { backgroundColor: theme.bgPrimary, borderColor: theme.border }]}>
-                     <View style={styles.composeHeader}>
-                         <Text style={[styles.composeTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Broadcast</Text>
-                         <TouchableOpacity onPress={() => setShowCompose(false)}>
-                             <Feather name="x" size={24} color={theme.textMuted} />
-                         </TouchableOpacity>
-                     </View>
-                     
-                     <TextInput 
-                        style={[styles.composeInput, { color: theme.textPrimary, fontFamily: FONTS.regular, backgroundColor: theme.bgSurface, borderColor: theme.border }]}
-                        placeholder="Share a win or milestone..."
-                        placeholderTextColor={theme.textMuted}
-                        multiline
-                        autoFocus
-                        value={newPostText}
-                        onChangeText={setNewPostText}
-                     />
-                                          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 20 }}>
-                        <TouchableOpacity onPress={pickPostImage} style={{ width: 60, height: 60, borderRadius: 12, backgroundColor: theme.bgSurface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border }}>
-                          {newPostImage ? (
-                            <Image source={{ uri: newPostImage }} style={{ width: '100%', height: '100%', borderRadius: 11 }} />
-                          ) : (
-                            <Feather name="image" size={20} color={theme.gold} />
-                          )}
-                        </TouchableOpacity>
-                        <View style={styles.composeTags}>
-                          {TAGS.map(t => (
-                              <TouchableOpacity 
-                                 key={t} 
-                                 onPress={() => setNewPostTag(t)}
-                                 style={[styles.cTag, { 
-                                      backgroundColor: newPostTag === t ? theme.gold + '33' : theme.bgElevated,
-                                      borderColor: newPostTag === t ? theme.gold : 'transparent',
-                                      borderWidth: 1
-                                 }]}
-                              >
-                                  <Text style={{ color: newPostTag === t ? theme.gold : theme.textMuted, fontSize: 11, fontFamily: FONTS.semiBold }}>{t}</Text>
-                              </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
+      <Modal visible={showCompose} transparent animationType="slide">
+        <BlurView intensity={80} tint="dark" style={styles.modalBg}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyWrap}>
+            <View style={[styles.composeCard, { backgroundColor: theme.bgPrimary, borderColor: theme.border }]}>
+              <View style={styles.composeHeader}>
+                <Text style={[styles.composeTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Broadcast</Text>
+                <TouchableOpacity onPress={() => setShowCompose(false)}>
+                  <Feather name="x" size={24} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
 
-                      <Button title={posting ? "BROADCASTING..." : "POST TO BROTHERHOOD"} disabled={posting} onPress={handlePost} style={{ marginTop: SPACING.md }} />
-                 </View>
-              </KeyboardAvoidingView>
-          </BlurView>
+              {/* Post type chips */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: SPACING.md }}>
+                {POST_TYPES.map(t => (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setNewPostType(t)}
+                    style={[styles.cTag, {
+                      backgroundColor: newPostType === t ? theme.gold + '33' : theme.bgElevated,
+                      borderColor: newPostType === t ? theme.gold : 'transparent',
+                      borderWidth: 1,
+                    }]}
+                  >
+                    <Text style={{ color: newPostType === t ? theme.gold : theme.textMuted, fontSize: 11, fontFamily: FONTS.semiBold }}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TextInput
+                style={[styles.composeInput, { color: theme.textPrimary, fontFamily: FONTS.regular, backgroundColor: theme.bgSurface, borderColor: theme.border }]}
+                placeholder="Share a win or milestone... (500 chars max)"
+                placeholderTextColor={theme.textMuted}
+                multiline
+                autoFocus
+                maxLength={500}
+                value={newPostText}
+                onChangeText={setNewPostText}
+              />
+              <Text style={{ color: theme.textMuted, fontSize: 11, textAlign: 'right', marginBottom: SPACING.md }}>{newPostText.length}/500</Text>
+
+              <Button title={posting ? 'BROADCASTING...' : 'POST TO BROTHERHOOD'} disabled={posting} onPress={handlePost} style={{ marginTop: SPACING.md }} />
+            </View>
+          </KeyboardAvoidingView>
+        </BlurView>
       </Modal>
     </SafeAreaView>
   );

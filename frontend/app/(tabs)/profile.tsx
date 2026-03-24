@@ -47,7 +47,9 @@ export default function ProfileScreen() {
       setBadges(bRes.data || []);
       
       const streakVal = sRes.data?.find((s: any) => s.streak_type === 'daily')?.current_streak || 0;
-      const daysActive = profile?.created_at ? Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000) : 0;
+      const daysActive = profile?.created_at
+        ? Math.max(1, Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000))
+        : 1;
       const targetStats = {
         streak: streakVal,
         workouts: wRes.count || 0,
@@ -201,7 +203,7 @@ export default function ProfileScreen() {
             />
           </View>
           <Text style={[styles.xpToNext, { color: theme.textMuted, fontFamily: FONTS.medium }]}>
-            XP PROGRESS LOADED
+            {profile?.level_title || 'INITIATE'}
           </Text>
         </View>
         
