@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { apiCall } from '../lib/api';
 import { FONTS, SPACING } from '../src/constants/theme';
 import { Button } from '../src/components/Button';
 
@@ -22,24 +23,22 @@ export default function SupplementStackScreen() {
   const generateStack = async () => {
       setLoading(true);
       try {
-          const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/supplement-stack`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  goals: profile?.goals || [],
-                  weak_spots: profile?.weak_spots || []
-              })
+          const data = await apiCall('/api/supplement-stack', 'POST', {
+              goals: profile?.goals || [],
+              weak_spots: profile?.weak_spots || []
           });
-          const data = await res.json();
           if (data && data.stack) {
               setStack(data.stack);
           }
       } catch (err) {
-          console.error(err);
+          console.log('Supplement stack API failed, using fallback metrics', err);
           // Fallback if backend not reachable
           setStack([
              { name: 'Ashwagandha', dosage: '600mg', benefit: 'Cortisol', benefitCol: '#2ECC71', notes: 'Lowers stress to boost T.', timing: 'Morning' },
-             { name: 'Creatine Monohydrate', dosage: '5g', benefit: 'Energy', benefitCol: '#3498DB', notes: 'Strength and hydration', timing: 'Post-Workout' }
+             { name: 'Creatine Monohydrate', dosage: '5g', benefit: 'Energy', benefitCol: '#3498DB', notes: 'Strength and cellular hydration. Raw power out of sets.', timing: 'Post-Workout' },
+             { name: 'Tongkat Ali', dosage: '400mg', benefit: 'Testosterone', benefitCol: '#E74C3C', notes: 'Free-testosterone optimizer.', timing: 'Morning' },
+             { name: 'Shilajit', dosage: '500mg', benefit: 'Vitality', benefitCol: '#9B59B6', notes: 'Fulvic acid for deep mitochondrial energy and dominance.', timing: 'Before Bed' },
+             { name: 'Magnesium Glycinate', dosage: '400mg', benefit: 'Recovery', benefitCol: '#F1C40F', notes: 'Crucial for muscle recovery and deep sleep.', timing: 'Before Bed' }
           ]);
       }
       setLoading(false);

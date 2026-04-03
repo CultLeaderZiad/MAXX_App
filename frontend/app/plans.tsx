@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
+import { TrialBanner } from '../src/components/TrialBanner';
 
 export default function PlansScreen() {
   const { theme } = useTheme();
@@ -19,7 +20,7 @@ export default function PlansScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="plans-screen">
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} testID="plans-back-btn" style={styles.backBtn}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); }} testID="plans-back-btn" style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.gold} />
         </TouchableOpacity>
         <View style={styles.dots}>
@@ -27,6 +28,9 @@ export default function PlansScreen() {
             <View key={i} style={[styles.dot, { backgroundColor: theme.gold }]} />
           ))}
         </View>
+      </View>
+      <View style={{ paddingHorizontal: SPACING.lg, paddingTop: SPACING.md }}>
+        <TrialBanner />
       </View>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold, textAlign: 'center' }]}>Choose Plan</Text>

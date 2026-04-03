@@ -5,14 +5,18 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import Svg, { Circle, Defs, Stop, LinearGradient as SvgGradient } from 'react-native-svg';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { BlurView } from 'expo-blur';
 import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { supabase } from '../../lib/supabase';
 
 const AnimatedSvg = Animated.createAnimatedComponent(Svg);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function ProfileScreen() {
   const { theme } = useTheme();
@@ -101,27 +105,39 @@ export default function ProfileScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
+      base64: true, // Ask ImagePicker to return base64
     });
 
-    if (!result.canceled && user) {
+    if (!result.canceled && user && result.assets[0].base64) {
       const file = result.assets[0];
-      const formData = new FormData();
-      // @ts-ignore
-      formData.append('file', { uri: file.uri, name: 'avatar.jpg', type: 'image/jpeg' });
+      setLoading(true);
 
       try {
-        const filePath = `${user.id}/avatar.jpg`;
+        // Use a unique filename with timestamp to break image caching
+        const filePath = `${user.id}/avatar_${Date.now()}.jpg`;
+        
+        // Base64 string directly from ImagePicker
+        const base64 = file.base64;
+
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(filePath, formData as any, { upsert: true });
+          .upload(filePath, decode(base64 as string), { 
+             upsert: true,
+             contentType: 'image/jpeg'
+          });
 
         if (!uploadError) {
           const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
           await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
-          fetchProfile();
+          await fetchProfile();
+        } else {
+          Alert.alert('Upload Error', uploadError.message);
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        Alert.alert('Upload Failed', e.message || 'There was an issue uploading your photo.');
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -136,34 +152,78 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Avatar Section */}
+        {/* Avatar Section with Circular Power Progress */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity onPress={pickImage} activeOpacity={0.8} style={styles.avatarWrapper}>
-            {profile?.avatar_url ? (
-              <Image source={{ uri: profile.avatar_url }} style={[styles.avatarImg, { borderRadius: 50, borderWidth: 2, borderColor: theme.gold }]} />
-            ) : (
-              <LinearGradient
-                colors={[theme.gold, '#8A6420']}
-                style={[styles.avatarCircle, { borderRadius: 50, alignItems: 'center', justifyContent: 'center' }]}
-              >
-                <Text style={[styles.initials, { color: '#FFF', fontFamily: FONTS.cinzelBold }]}>
-                  {profile?.full_name?.[0]?.toUpperCase() || 'U'}
-                </Text>
-              </LinearGradient>
-            )}
-          </TouchableOpacity>
+          <View style={styles.ringContainer}>
+            <Svg height="140" width="140" viewBox="0 0 100 100">
+               <Circle
+                 cx="50"
+                 cy="50"
+                 r="45"
+                 stroke={theme.border}
+                 strokeWidth="3"
+                 fill="none"
+               />
+               <AnimatedCircle
+                 cx="50"
+                 cy="50"
+                 r="45"
+                 stroke={theme.gold}
+                 strokeWidth="4"
+                 strokeDasharray="282.7"
+                 strokeDashoffset={powerLevelAnim.interpolate({
+                   inputRange: [0, 100],
+                   outputRange: [282.7, 0]
+                 })}
+                 strokeLinecap="round"
+                 fill="none"
+               />
+            </Svg>
+            <TouchableOpacity onPress={pickImage} activeOpacity={0.8} style={styles.avatarWrapper}>
+              {profile?.avatar_url ? (
+                <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
+              ) : (
+                <LinearGradient
+                  colors={[theme.gold, '#8A6420']}
+                  style={styles.avatarCircle}
+                >
+                  <Text style={[styles.initials, { color: '#FFF', fontFamily: FONTS.cinzelBold }]}>
+                    {profile?.full_name?.[0]?.toUpperCase() || 'U'}
+                  </Text>
+                </LinearGradient>
+              )}
+            </TouchableOpacity>
+          </View>
           
           <Text style={[styles.userName, { color: theme.textPrimary, fontFamily: FONTS.semiBold, marginTop: 12 }]}>
             {profile?.full_name || 'Alchemist'}
           </Text>
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: -4 }}>@{profile?.username || 'brother'}</Text>
+          <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: -2 }}>@{profile?.username || 'brother'}</Text>
           
-          <View style={[styles.titlePill, { backgroundColor: '#C8A96E22', marginTop: 12 }]}>
-             <Feather name="zap" size={12} color={theme.gold} />
-             <Text style={[styles.titleText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>
-                {profile?.level_title || 'BEGINNER'}
+          <View style={[styles.titlePill, { backgroundColor: theme.gold + '22', marginTop: 16 }]}>
+             <Feather name="shield" size={14} color={theme.gold} />
+             <Text style={[styles.titleText, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
+                {profile?.rank ? profile.rank.toUpperCase() : 'BEGINNER'}
              </Text>
           </View>
+        </View>
+
+        {/* Attribute Breakdown */}
+        <View style={styles.attributeContainer}>
+           <View style={styles.attrItem}>
+              <Text style={[styles.attrLabel, { color: theme.textMuted }]}>WARRIOR</Text>
+              <Text style={[styles.attrVal, { color: theme.textPrimary }]}>{Math.min(99, 10 + (profile?.workouts_completed || 0))}</Text>
+           </View>
+           <View style={[styles.attrDivider, { backgroundColor: theme.border }]} />
+           <View style={styles.attrItem}>
+              <Text style={[styles.attrLabel, { color: theme.textMuted }]}>SOCIAL</Text>
+              <Text style={[styles.attrVal, { color: theme.textPrimary }]}>{Math.min(99, 20 + Math.floor((profile?.xp || 0) / 50))}</Text>
+           </View>
+           <View style={[styles.attrDivider, { backgroundColor: theme.border }]} />
+           <View style={styles.attrItem}>
+              <Text style={[styles.attrLabel, { color: theme.textMuted }]}>MENTAL</Text>
+              <Text style={[styles.attrVal, { color: theme.textPrimary }]}>{Math.min(99, 5 + (displayStats.streak * 2))}</Text>
+           </View>
         </View>
 
         {/* Stats Row */}
@@ -181,30 +241,41 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* Power Level */}
+        {/* Rank XP Level */}
         <View style={[styles.powerCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
           <View style={styles.powerInfo}>
-            <Text style={[styles.powerLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>POWER LEVEL</Text>
+            <Text style={[styles.powerLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>RANK PROGRESS</Text>
             <View style={styles.powerValRow}>
-               <Feather name="zap" size={16} color={theme.gold} />
-               <Text style={[styles.powerVal, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{profile?.power_level || 0}</Text>
+               <Feather name="star" size={16} color={theme.gold} />
+               <Text style={[styles.powerVal, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{profile?.rank || 'Beginner'}</Text>
             </View>
           </View>
-          <View style={{ height: 8, backgroundColor: theme.border, borderRadius: 4, overflow: 'hidden' }}>
-            <Animated.View 
-              style={{ 
-                height: '100%', 
-                backgroundColor: theme.gold, 
-                width: powerLevelAnim.interpolate({
-                  inputRange: [0, 100],
-                  outputRange: ['0%', '100%']
-                }) 
-              }} 
-            />
-          </View>
-          <Text style={[styles.xpToNext, { color: theme.textMuted, fontFamily: FONTS.medium }]}>
-            {profile?.level_title || 'INITIATE'}
-          </Text>
+          
+          {(() => {
+             const rank = profile?.rank || 'Beginner';
+             const curXp = displayStats.xp;
+             let cMin = 0, nReq = 1000, nRank = 'Intermediate';
+             if (rank === 'Intermediate') { cMin = 1000; nReq = 3000; nRank = 'Pro'; }
+             else if (rank === 'Pro') { cMin = 3000; nReq = 6000; nRank = 'World Class'; }
+             else if (rank === 'WorldClass' || rank === 'World Class') { cMin = 6000; nReq = 10000; nRank = 'MAX'; }
+             
+             const progressPct = Math.max(0, Math.min(100, ((curXp - cMin) / (nReq - cMin)) * 100));
+             return (
+               <>
+                 <View style={{ height: 12, backgroundColor: theme.border, borderRadius: 6, overflow: 'hidden' }}>
+                    <View style={{ height: '100%', backgroundColor: theme.gold, width: `${progressPct}%` }} />
+                 </View>
+                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.md }}>
+                    <Text style={{ color: theme.textMuted, fontFamily: FONTS.medium, fontSize: 11 }}>
+                      {curXp} XP / {nReq} XP
+                    </Text>
+                    <Text style={{ color: theme.textMuted, fontFamily: FONTS.medium, fontSize: 11, letterSpacing: 1 }}>
+                      NEXT: {nRank.toUpperCase()}
+                    </Text>
+                 </View>
+               </>
+             );
+          })()}
         </View>
         
         {/* Plan Card */}
@@ -252,36 +323,47 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
-  title: { fontSize: 28 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingBottom: 10 },
+  title: { fontSize: 24 },
   gearBtn: { padding: 8 },
   scroll: { paddingBottom: SPACING.xl },
-  avatarSection: { alignItems: 'center', marginTop: SPACING.xl },
-  avatarWrapper: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
-  avatarCircle: { width: 86, height: 86, borderRadius: 43, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarSection: { alignItems: 'center', marginTop: SPACING.md },
+  ringContainer: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center' },
+  avatarWrapper: { position: 'absolute', width: 100, height: 100, borderRadius: 50, overflow: 'hidden' },
+  avatarCircle: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   avatarImg: { width: '100%', height: '100%' },
-  initials: { fontSize: 32 },
-  userName: { fontSize: 24, marginTop: 12 },
+  initials: { fontSize: 36 },
+  userName: { fontSize: 24 },
   titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 16, borderRadius: 20 },
-  titleText: { fontSize: 13, letterSpacing: 1 },
+  titleText: { fontSize: 13, letterSpacing: 2 },
+  
+  attributeContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginTop: SPACING.xl, paddingHorizontal: SPACING.lg },
+  attrItem: { alignItems: 'center', flex: 1 },
+  attrLabel: { fontSize: 9, letterSpacing: 1.5, marginBottom: 4 },
+  attrVal: { fontSize: 20, fontFamily: FONTS.cinzelBold },
+  attrDivider: { width: 1, height: 30, opacity: 0.3 },
+  
   statsRow: { flexDirection: 'row', gap: 8, paddingHorizontal: SPACING.lg, marginTop: SPACING.xl },
-  statCard: { flex: 1, height: 70, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 18 },
+  statCard: { flex: 1, height: 80, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 20 },
   statLabel: { fontSize: 9, letterSpacing: 1, marginTop: 4 },
-  powerCard: { marginTop: SPACING.xl, marginHorizontal: SPACING.lg, padding: SPACING.lg, borderRadius: 16, borderWidth: 1 },
+  
+  powerCard: { marginTop: SPACING.lg, marginHorizontal: SPACING.lg, padding: SPACING.lg, borderRadius: 20, borderWidth: 1 },
   powerInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
   powerLabel: { fontSize: 11, letterSpacing: 1.2 },
   powerValRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  powerVal: { fontSize: 16 },
-  xpToNext: { fontSize: 11, textAlign: 'center', marginTop: SPACING.md, letterSpacing: 1 },
+  powerVal: { fontSize: 18 },
+  xpToNext: { fontSize: 11, textAlign: 'center', marginTop: SPACING.md, letterSpacing: 2 },
+  
   planCard: { marginTop: SPACING.md, marginHorizontal: SPACING.lg, padding: SPACING.lg, borderRadius: 16, borderWidth: 1 },
   planLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 4 },
   planName: { fontSize: 18 },
   upgradeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  
   badgesWrap: { marginTop: SPACING.xl, paddingHorizontal: SPACING.lg },
   sectionTitle: { fontSize: 12, letterSpacing: 1.2, marginBottom: SPACING.lg },
   badgeGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   badgeItem: { width: '25%', alignItems: 'center', marginBottom: SPACING.lg },
-  badgeIcon: { width: 50, height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  badgeLabel: { fontSize: 11, marginTop: 8 },
+  badgeIcon: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  badgeLabel: { fontSize: 10, marginTop: 8, textAlign: 'center' },
 });

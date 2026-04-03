@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../src/components/Button';
@@ -54,6 +54,7 @@ function GoldParticle({ delay, startX }: { delay: number; startX: number; key?: 
 
 export default function WelcomeScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user, profile, loading, signInAsAdmin } = useAuth();
   const router = useRouter();
   const letters = ['M', 'A', 'X', 'X'];
@@ -146,7 +147,7 @@ export default function WelcomeScreen() {
         </Animated.Text>
       </View>
 
-      <Animated.View style={[styles.bottom, { transform: [{ translateY: btnSlide }, { scale: btnPulse }] }]}>
+      <Animated.View style={[styles.bottom, { transform: [{ translateY: btnSlide }, { scale: btnPulse }], paddingBottom: Math.max(insets.bottom, 20) + 40 }]}>
         <Button title="START YOUR FREE 7 DAYS" onPress={() => router.push('/register')} testID="start-trial-btn" />
         <Text style={[styles.subtext, { color: theme.textMuted, fontFamily: FONTS.regular }]}>
           No charge until Day 8 · Cancel anytime
@@ -170,7 +171,7 @@ export default function WelcomeScreen() {
         fontSize: 11,
         textAlign: 'center',
         position: 'absolute',
-        bottom: 20,
+        bottom: Math.max(insets.bottom, 10),
         alignSelf: 'center'
       }}>
         Developed by Ziad Sabry

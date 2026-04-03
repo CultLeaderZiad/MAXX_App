@@ -312,10 +312,16 @@ async def recalculate_power(request: Request, user_id: str = Depends(get_current
 async def supplement_stack(request: Request, req: SupplementStackRequest, user_id: str = Depends(get_current_user)):
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt = f"Create a personalized supplement stack for goals: {req.goals}. Format as JSON list of dicts."
+        prompt = (
+            f"Create a personalized supplement stack for goals: {req.goals}. "
+            "Return ONLY valid JSON as a list of dicts with keys: name, dosage, benefit, benefitCol (hex color), notes, timing."
+        )
         res = model.generate_content(prompt)
-        return {"success": True, "stack": [], "disclaimer": "Medical disclaimer: Consult a doctor first."}
+        text = res.text.replace("```json", "").replace("```", "").strip()
+        stack_data = json.loads(text)
+        return {"success": True, "stack": stack_data, "disclaimer": "Medical disclaimer: Consult a doctor first."}
     except Exception as e:
+        logger.error(f"Supplement stack error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @api_router.post("/moderate-post")

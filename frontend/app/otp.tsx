@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, Animated, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -15,10 +15,11 @@ import { FONTS, SPACING } from '../src/constants/theme';
 
 export default function OTPScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { verifyOtp, signInAsAdmin } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ email: string }>();
-  const [code, setCode] = useState(['', '', '', '', '', '', '', '']);
+  const [code, setCode] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
@@ -47,13 +48,13 @@ export default function OTPScreen() {
       const digits = text.split('').slice(0, 6);
       const newCode = [...code];
       digits.forEach((d, i) => {
-        if (index + i < 8) newCode[index + i] = d;
+        if (index + i < 6) newCode[index + i] = d;
       });
       setCode(newCode);
-      if (digits.length === 8) {
+      if (digits.length === 6) {
         handleVerify(newCode.join(''));
       } else {
-        const nextIndex = Math.min(index + digits.length, 7);
+        const nextIndex = Math.min(index + digits.length, 5);
         inputs.current[nextIndex]?.focus();
       }
       return;
@@ -64,10 +65,10 @@ export default function OTPScreen() {
     setCode(newCode);
     setError('');
     
-    if (text && index < 7) {
+    if (text && index < 5) {
       inputs.current[index + 1]?.focus();
     }
-    if (index === 7 && text) {
+    if (index === 5 && text) {
       handleVerify(newCode.join(''));
     }
   };
@@ -187,7 +188,7 @@ export default function OTPScreen() {
                     color: theme.textPrimary,
                     borderColor: error ? theme.red : digit ? theme.borderActive : theme.border,
                     fontFamily: FONTS.bold,
-                    width: 38, // Slightly smaller to fit 8 boxes
+                    width: 50,
                   },
                 ]}
                 value={digit}
@@ -195,7 +196,7 @@ export default function OTPScreen() {
                 onKeyPress={(e) => handleKeyPress(e, i)}
                 keyboardType="number-pad"
                 textContentType="oneTimeCode"
-                maxLength={8} // Allow paste of full code
+                maxLength={6} // Allow paste of full code
                 selectTextOnFocus
               />
             ))}
@@ -212,7 +213,7 @@ export default function OTPScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <View style={styles.bottom}>
+        <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 24) }]}>
           <Button title="VERIFY CODE" onPress={() => handleVerify()} loading={loading} testID="otp-verify-btn" style={{ marginBottom: 12 }} />
           <TouchableOpacity onPress={handleLinkVerified} style={styles.linkVerifyBtn}>
             <Text style={[styles.linkVerifyText, { color: theme.gold }]}>I clicked the verification link</Text>
@@ -234,7 +235,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 28 },
   sub: { fontSize: 14, marginTop: SPACING.sm, lineHeight: 22 },
   codeRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.xl, justifyContent: 'center' },
-  digitInput: { width: 44, height: 52, borderRadius: 10, borderWidth: 1, textAlign: 'center', fontSize: 20 },
+  digitInput: { width: 50, height: 58, borderRadius: 12, borderWidth: 1, textAlign: 'center', fontSize: 24 },
   error: { color: '#E74C3C', fontSize: 13, marginTop: SPACING.md, textAlign: 'center' },
   resend: { fontSize: 13, marginTop: SPACING.lg, textAlign: 'center' },
   resendActive: { fontSize: 14, textAlign: 'center', marginTop: SPACING.sm },

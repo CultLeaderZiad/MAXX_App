@@ -54,14 +54,10 @@ export const MOCK_PROGRESS_CARDS = [
 ];
 
 export const GOAL_OPTIONS = [
-  { key: 'jaw', label: 'Jaw & Facial Sculpting', icon: 'target' as const },
-  { key: 'spine', label: 'Spinal Alignment', icon: 'align-center' as const },
-  { key: 'sexual', label: 'Sexual Performance', icon: 'heart' as const },
-  { key: 'nofap', label: 'NoFap & Confidence', icon: 'shield' as const },
-  { key: 'social', label: 'Social Presence', icon: 'users' as const },
-  { key: 'muscle', label: 'Build Muscle', icon: 'activity' as const },
-  { key: 'digital', label: 'Digital Identity', icon: 'smartphone' as const },
-  { key: 'more', label: 'More Goals', icon: 'plus' as const },
+  { key: 'Beginner', label: 'Beginner', icon: 'target' as const },
+  { key: 'Intermediate', label: 'Intermediate', icon: 'zap' as const },
+  { key: 'Pro', label: 'Pro', icon: 'star' as const },
+  { key: 'WorldClass', label: 'World Class', icon: 'award' as const },
 ];
 
 export const WEAK_SPOT_OPTIONS = [

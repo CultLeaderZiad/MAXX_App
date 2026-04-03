@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../src/components/Button';
 import { FONTS, SPACING } from '../../src/constants/theme';
+import { TrialBanner } from '../../src/components/TrialBanner';
 
 export default function SettingsScreen() {
   const { theme, toggleTheme, mode } = useTheme();
@@ -103,13 +104,16 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="settings-screen">
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); }} style={styles.backBtn}>
           <Feather name="chevron-left" size={24} color={theme.gold} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Settings</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={{ paddingHorizontal: SPACING.lg }}>
+          <TrialBanner />
+        </View>
         <Section title="ACCOUNT">
           <Item label="Edit Profile" onPress={() => router.push('/settings/edit-profile' as any)} />
           <Item label="Change Password" onPress={() => setShowPasswordModal(true)} />

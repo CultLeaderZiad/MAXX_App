@@ -96,7 +96,7 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
     try {
       const { data: progData, error: progErr } = await supabase
         .from('training_programs')
-        .select('id, title, subtitle, description, difficulty, unlock_level, required_level, required_plan, duration, sort_order')
+        .select('id, title, subtitle, description, difficulty, unlock_level, required_plan, duration_weeks, sort_order')
         .eq('category', category)
         .eq('is_active', true)
         .order('sort_order');
@@ -110,7 +110,7 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
 
       const progs = progData.map((p: any) => {
         let isLocked = false;
-        if (p.required_level && (profile?.power_level || 1) < p.required_level) isLocked = true;
+        if (p.unlock_level && (profile?.power_level || 1) < p.unlock_level) isLocked = true;
         if (p.required_plan && profile?.plan === 'free_trial') isLocked = true;
         return { ...p, locked: isLocked };
       });
@@ -190,7 +190,7 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
                 <View style={styles.progHeader}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.progTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{prog.title}</Text>
-                    <Text style={[styles.progSub, { color: theme.textMuted }]}>{prog.duration} · {prog.difficulty}</Text>
+                    <Text style={[styles.progSub, { color: theme.textMuted }]}>{prog.duration_weeks ? prog.duration_weeks + ' weeks' : ''} · {prog.difficulty}</Text>
                     {prog.subtitle ? (
                       <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>{prog.subtitle}</Text>
                     ) : null}
@@ -228,7 +228,7 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
                   </View>
                 ) : null}
                 <TouchableOpacity
-                  onPress={() => router.push(`/exercise?id=${ex.id}&programId=${prog.id}&name=${encodeURIComponent(ex.name || ex.title)}&sets=${ex.sets || 3}&hold=${ex.hold_seconds || 45}&rest=${ex.rest_seconds || 30}&xp=${ex.xp_reward || 30}`)}
+                  onPress={() => router.push(`/exercise?id=${ex.id}&programId=${prog.id}&name=${encodeURIComponent(ex.name || ex.title)}&sets=${ex.sets || 3}&hold=${ex.hold_seconds || 45}&rest=${ex.rest_seconds || 30}&xp=${ex.xp_reward || 30}&description=${encodeURIComponent(ex.description || '')}&coach_note=${encodeURIComponent(ex.coach_note || '')}&pro_tip=${encodeURIComponent(ex.pro_tip || '')}`)}
                   style={[styles.startBtn, { backgroundColor: theme.gold }]}
                 >
                   <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold, fontSize: 13 }}>START</Text>
@@ -282,9 +282,33 @@ function NutritionTab({ theme }: { theme: any }) {
       <View style={[styles.captainBox, { backgroundColor: 'rgba(200,169,110,0.08)', borderColor: theme.gold }]}>
         <Text style={{ color: theme.gold, fontFamily: FONTS.cinzelBold, fontSize: 13, marginBottom: 6 }}>Your gym bro says:</Text>
         <Text style={{ color: theme.textSecondary, fontFamily: FONTS.regular, fontSize: 13, fontStyle: 'italic' }}>
-          "You are what you eat. If you eat processed garbage, you look like garbage. Fuel the machine."
+          "You are what you eat. If you eat processed GoySlop, you look like GoySlop. Fuel the machine with Anti-Goyim boosters."
         </Text>
       </View>
+
+      <Card style={{ ...StyleSheet.flatten(styles.guideCard), borderColor: theme.error, marginTop: 10 }}>
+        <Text style={[styles.guideTitle, { color: theme.error, fontFamily: FONTS.cinzelBold }]}>AVOID GOYSLOP</Text>
+        <Text style={{ color: theme.textSecondary, marginTop: 6, lineHeight: 20, fontFamily: FONTS.regular }}>
+          Unhealthy, processed or highly sugary foods and drinks engineered to keep you weak. Cut it out entirely.
+        </Text>
+        <View style={{ marginTop: 10, gap: 4 }}>
+          {['Monster Energy', 'Red Bull', 'Prime Energy', 'Mountain Dew', 'Coca-Cola', 'Doritos & Chips', 'Candy & Gummy Bears', 'Fast Food (McDonalds, KFC)', 'Seed Oils (Canola, Soybean)', 'Margarine & Fake Butter', 'Instant Noodles', 'Frozen Pizza', 'Sugary Cereals', 'Diet Soda (Aspartame)', 'Pre-made Sauces'].map((item, i) => (
+            <Text key={i} style={{ color: theme.textMuted, fontSize: 12, fontFamily: FONTS.regular }}>❌ {item}</Text>
+          ))}
+        </View>
+      </Card>
+
+      <Card style={{ ...StyleSheet.flatten(styles.guideCard), borderColor: theme.green, marginTop: 10, marginBottom: 10 }}>
+        <Text style={[styles.guideTitle, { color: theme.green, fontFamily: FONTS.cinzelBold }]}>FUEL WITH ANTI-GOYIM</Text>
+        <Text style={{ color: theme.textSecondary, marginTop: 6, lineHeight: 20, fontFamily: FONTS.regular }}>
+          Whole, nutrient-dense foods that boost testosterone and build raw power. Eat for dominance.
+        </Text>
+        <View style={{ marginTop: 10, gap: 4 }}>
+          {['Grass-Fed Red Meat & Steak', 'Free-Range Eggs (Whole)', 'Raw Dairy & Milk', 'Organ Meats (Liver, Heart)', 'Wild Salmon & Sardines', 'Sweet Potatoes & Rice', 'Honey (Raw, Unprocessed)', 'Butter & Ghee', 'Bone Broth', 'Garlic, Onion, Ginger', 'Dark Leafy Greens', 'Nuts & Seeds (Almonds, Walnuts)', 'Avocados & Olive Oil', 'Berries (Blueberry, Açaí)'].map((item, i) => (
+            <Text key={i} style={{ color: theme.textSecondary, fontSize: 12, fontFamily: FONTS.regular }}>✅ {item}</Text>
+          ))}
+        </View>
+      </Card>
 
       {guides.length === 0 ? (
         <View style={{ alignItems: 'center', paddingVertical: 40 }}>
@@ -307,16 +331,20 @@ function NutritionTab({ theme }: { theme: any }) {
                   {g.eat_foods && g.eat_foods.length > 0 && (
                     <View>
                       <Text style={{ color: '#2ECC71', fontFamily: FONTS.semiBold, fontSize: 12, marginBottom: 4 }}>EAT MORE</Text>
-                      {g.eat_foods.map((f: string, i: number) => (
-                        <Text key={i} style={{ color: theme.textSecondary, fontSize: 12 }}>✅ {f}</Text>
+                      {g.eat_foods.map((f: any, i: number) => (
+                        <Text key={i} style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 2 }}>
+                          ✅ {typeof f === 'string' ? f : `${f.food || ''}${f.why ? ` - ${f.why}` : ''}`}
+                        </Text>
                       ))}
                     </View>
                   )}
                   {g.avoid_foods && g.avoid_foods.length > 0 && (
                     <View style={{ marginTop: 8 }}>
                       <Text style={{ color: '#E74C3C', fontFamily: FONTS.semiBold, fontSize: 12, marginBottom: 4 }}>AVOID</Text>
-                      {g.avoid_foods.map((f: string, i: number) => (
-                        <Text key={i} style={{ color: theme.textSecondary, fontSize: 12 }}>❌ {f}</Text>
+                      {g.avoid_foods.map((f: any, i: number) => (
+                        <Text key={i} style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 2 }}>
+                          ❌ {typeof f === 'string' ? f : `${f.food || ''}${f.why ? ` - ${f.why}` : ''}`}
+                        </Text>
                       ))}
                     </View>
                   )}

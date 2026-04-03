@@ -9,15 +9,18 @@ import { Button } from '../src/components/Button';
 import { ProgressBar } from '../src/components/ProgressBar';
 import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
 import { GOAL_OPTIONS } from '../src/constants/mockData';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export default function GoalsScreen() {
   const { theme } = useTheme();
   const router = useRouter();
-  const [selected, setSelected] = useState<string[]>([]);
+  const { session, refreshProfile } = useAuth();
+  const [selected, setSelected] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
 
   const toggle = (key: string) => {
-    setSelected((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
+    setSelected(key);
   };
 
   return (
@@ -46,7 +49,7 @@ export default function GoalsScreen() {
           </>
         }
         renderItem={({ item: goal }) => {
-          const isSel = selected.includes(goal.key);
+          const isSel = selected === goal.key;
           return (
             <TouchableOpacity
               testID={`goal-${goal.key}`}
@@ -87,10 +90,19 @@ export default function GoalsScreen() {
         <Button
           title="CONTINUE"
           onPress={async () => {
-            await AsyncStorage.setItem('onboarding_goals', JSON.stringify(selected));
-            router.push({ pathname: '/weakspots', params: { goals: JSON.stringify(selected) } });
+            if (!selected) return;
+            try {
+              if (session?.user) {
+                await supabase.from('profiles').update({ rank: selected, goals: [selected] }).eq('id', session.user.id);
+                await refreshProfile();
+              }
+              await AsyncStorage.setItem('onboarding_goals', selected);
+            } catch (e) {
+              console.error(e);
+            }
+            router.push({ pathname: '/weakspots', params: { goals: selected } });
           }}
-          disabled={selected.length === 0 || !agreed}
+          disabled={!selected || !agreed}
           testID="goals-continue-btn"
         />
       </View>

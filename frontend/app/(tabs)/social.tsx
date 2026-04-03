@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,6 +22,7 @@ const POST_TYPES = ['WIN', 'MILESTONE', 'INSIGHT'];
 export default function SocialScreen() {
   const { theme } = useTheme();
   const { user, profile } = useAuth();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('Brotherhood');
   const [activePlatform, setActivePlatform] = useState('Instagram');
   const [aiEngine, setAiEngine] = useState('Gemini');
@@ -266,31 +268,37 @@ export default function SocialScreen() {
   );
 
   const DatingIQView = () => {
-      const lessons = [
-          { id: 1, title: 'The Approach', time: '5 min', number: '01' },
-          { id: 2, title: 'Texting Game', time: '8 min', number: '02' },
-          { id: 3, title: 'First Date Logistics', time: '6 min', number: '03' },
-          { id: 4, title: 'Escalation', time: '7 min', number: '04', locked: true },
-      ];
-      
-      return (
-        <ScrollView contentContainerStyle={styles.tabContent}>
-            {lessons.map(l => (
-                <TouchableOpacity key={l.id}>
-                    <Card style={StyleSheet.flatten([styles.lessonCard, { opacity: l.locked ? 0.6 : 1 }])}>
-                        <View style={styles.lessonLeft}>
-                            <Text style={[styles.lessonNum, { color: theme.textMuted, fontFamily: FONTS.cinzelBold }]}>{l.number}</Text>
-                            <View>
-                                <Text style={[styles.lessonTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{l.title}</Text>
-                                <Text style={[styles.lessonTime, { color: theme.textSecondary }]}>{l.time} read</Text>
-                            </View>
-                        </View>
-                        {l.locked ? <Feather name="lock" size={18} color={theme.textMuted} /> : <Feather name="play-circle" size={20} color={theme.gold} />}
-                    </Card>
-                </TouchableOpacity>
-            ))}
-        </ScrollView>
-      );
+    const lessons = [
+      { id: 1, title: 'The Approach', time: '5 min', number: '01', scenario: 'cold_approach' },
+      { id: 2, title: 'Texting Game', time: '8 min', number: '02', scenario: 'texting_game' },
+      { id: 3, title: 'First Date Logistics', time: '6 min', number: '03', scenario: 'first_date' },
+      { id: 4, title: 'Escalation', time: '7 min', number: '04', locked: true },
+    ];
+
+    return (
+      <ScrollView contentContainerStyle={styles.tabContent}>
+        {lessons.map(l => (
+          <TouchableOpacity
+            key={l.id}
+            onPress={() => {
+              if (l.locked) return;
+              router.push({ pathname: '/focus', params: { scenario: l.scenario } });
+            }}
+          >
+            <Card style={StyleSheet.flatten([styles.lessonCard, { opacity: l.locked ? 0.6 : 1, borderColor: l.locked ? theme.border : theme.gold + '22' }])}>
+              <View style={styles.lessonLeft}>
+                <Text style={[styles.lessonNum, { color: l.locked ? theme.textMuted : theme.gold, fontFamily: FONTS.cinzelBold }]}>{l.number}</Text>
+                <View>
+                  <Text style={[styles.lessonTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{l.title}</Text>
+                  <Text style={[styles.lessonTime, { color: theme.textSecondary }]}>{l.time} read • Practice now</Text>
+                </View>
+              </View>
+              {l.locked ? <Feather name="lock" size={18} color={theme.textMuted} /> : <Feather name="play-circle" size={20} color={theme.gold} />}
+            </Card>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    );
   };
 
   return (
@@ -414,7 +422,7 @@ const styles = StyleSheet.create({
   postActions: { flexDirection: 'row', gap: 12 },
   likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10 },
   likeText: { fontSize: 12, letterSpacing: 0.5 },
-  fab: { position: 'absolute', bottom: 30, right: 30, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 5 },
+  fab: { position: 'absolute', bottom: 28, right: 20, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, zIndex: 999 },
   
   // Dating IQ
   lessonCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.lg },

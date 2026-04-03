@@ -4,6 +4,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
 import { FONTS } from '../../src/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TAB_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   index: 'home',
@@ -15,17 +16,21 @@ const TAB_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
 
 export default function TabLayout() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = insets.bottom > 0 ? insets.bottom + 8 : (Platform.OS === 'android' ? 16 : 30);
+  const tabHeight = 60 + bottomPadding;
 
   return (
     <Tabs
       screenOptions={({ route }) => ({
         headerShown: false,
+        sceneStyle: { backgroundColor: theme.bgPrimary },
         tabBarStyle: {
           backgroundColor: theme.bgSurface,
           borderTopColor: theme.border + '44',
           borderTopWidth: 1,
-          height: Platform.OS === 'android' ? 70 : 88,
-          paddingBottom: Platform.OS === 'android' ? 12 : 30,
+          height: tabHeight,
+          paddingBottom: bottomPadding,
           paddingTop: 12,
           position: 'absolute',
           bottom: 0,

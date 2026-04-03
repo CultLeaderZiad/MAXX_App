@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Modal, Alert, Animated, Easing, Share, KeyboardAvoidingView, Platform
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -51,26 +52,55 @@ const CONFIDENCE_MODULES = [
 
 // ─── Convo Scenarios ──────────────────────────────────────────────────────────
 const SCENARIOS = [
-  { id: 'first_date', title: 'First Date', difficulty: 'EASY', desc: 'Break the ice and build rapport.', plan: 'trial',
+  { id: 'first_date', title: 'First Date', difficulty: 'EASY', desc: 'Break the ice and build rapport over coffee.', plan: 'trial',
     prompt: 'You are a young woman on a first date at a coffee shop. React realistically — sometimes engaged, sometimes reserved. After 8 exchanges give a score 1-10 and feedback.' },
-  { id: 'cold_approach', title: 'Cold Approach', difficulty: 'HARD', desc: 'Stop her on the street naturally.', plan: 'trial',
-    prompt: 'You are a young woman on a busy street. A man just stopped you. You are slightly surprised. React naturally. After 6 exchanges give feedback on the opener and delivery.' },
+  { id: 'cold_approach', title: 'Street Cold Approach', difficulty: 'HARD', desc: 'Stop her on the street naturally.', plan: 'trial',
+    prompt: 'You are a young woman walking on a street. A man just stopped you. You are slightly surprised. React naturally. After 6 exchanges give feedback on the opener and delivery.' },
+  { id: 'gym_approach', title: 'Gym Approach', difficulty: 'HARD', desc: 'Navigate the tricky gym environment.', plan: 'grind',
+    prompt: 'You are a woman working out at the gym in between sets. A guy approaches you. Be slightly guarded but open if his social calibration is perfect. After 6 exchanges give feedback.' },
+  { id: 'bar_approach', title: 'Bar / Club Approach', difficulty: 'MEDIUM', desc: 'High energy environment, push through the noise.', plan: 'grind',
+    prompt: 'You are a woman at a loud bar. You are with a friend. A guy approaches. React to his energy. Give feedback after 6 exchanges.' },
+  { id: 'library_approach', title: 'Library / Bookstore Approach', difficulty: 'MEDIUM', desc: 'Low energy, intellectual vibe.', plan: 'alpha',
+    prompt: 'You are a woman browsing books. A guy approaches. Be interested but keep your voice down. Gauge his intellectual connection. Feedback after 6 exchanges.' },
+  { id: 'number_close', title: 'The Number Close', difficulty: 'MEDIUM', desc: 'Transition from small talk to getting the number.', plan: 'alpha',
+    prompt: 'You have been talking to a guy for 5 minutes. It went well. He is now trying to get your number. Put up a slight objection to test his frame. Feedback after 4 exchanges.' },
+  { id: 'texting_game', title: 'Texting Game', difficulty: 'EASY', desc: 'Move from text to date.', plan: 'sigma',
+    prompt: 'You are a girl who met this guy once. He is texting you. You are slightly interested but testing. After 6 texts give feedback on whether he could have gotten a date.' },
   { id: 'salary_negotiation', title: 'Salary Negotiation', difficulty: 'MEDIUM', desc: 'Get what you are worth.', plan: 'grind',
     prompt: 'You are a hiring manager. The candidate is negotiating salary. Be firm but fair. After 6 exchanges give feedback.' },
   { id: 'conflict_frame', title: 'Hold Your Frame', difficulty: 'MEDIUM', desc: 'Disagree without backing down.', plan: 'alpha',
     prompt: 'You are a peer who disagrees strongly. Push back firmly. After 6 exchanges give feedback on how well he maintained his frame.' },
   { id: 'group_social', title: 'Group Social', difficulty: 'HARD', desc: 'Own the room.', plan: 'alpha',
     prompt: 'You are part of a social group. The user is trying to integrate. React realistically. After 8 exchanges give score and feedback.' },
-  { id: 'texting_game', title: 'Texting Game', difficulty: 'EASY', desc: 'Move from text to date.', plan: 'sigma',
-    prompt: 'You are a girl who met this guy once. He is texting you. You are slightly interested but testing. After 6 texts give feedback on whether he could have gotten a date.' }
+  // New scenarios
+  { id: 'friend_zone_escape', title: 'Friend Zone Escape', difficulty: 'HARD', desc: 'Shift from friend to romantic interest.', plan: 'grind',
+    prompt: 'You are a girl who sees this guy as a close friend. He is trying to shift the dynamic towards romantic interest. React naturally — be slightly confused but open. After 6 exchanges give feedback on how well he escalated.' },
+  { id: 'mentor_connection', title: 'Mentor Connection', difficulty: 'MEDIUM', desc: 'Impress a successful mentor at an event.', plan: 'trial',
+    prompt: 'You are a successful entrepreneur at a networking event. A young man approaches you for mentorship. Be selective — only invest time in someone with drive and vision. After 6 exchanges give feedback on their approach.' },
+  { id: 'group_amog', title: 'Group Dominance (AMOG)', difficulty: 'HARD', desc: 'Handle a competing alpha in the group.', plan: 'sigma',
+    prompt: 'You are a dominant guy in a social group. Another guy is trying to establish presence. Test him subtly — interrupt, challenge, redirect attention. After 6 exchanges give score on how well he handled social pressure.' },
+  { id: 'ex_conversation', title: 'Post-Breakup Frame', difficulty: 'HARD', desc: 'Handle an ex reaching out without losing frame.', plan: 'alpha',
+    prompt: 'You are an ex-girlfriend reaching out after 3 months of no contact. You miss the connection but testing if he has changed. React to his emotional control. After 6 exchanges give feedback.' },
+  { id: 'interview_alpha', title: 'Leadership Interview', difficulty: 'MEDIUM', desc: 'Show authority in a job interview.', plan: 'grind',
+    prompt: 'You are a panel interviewer for a leadership position. Ask challenging behavioral questions. Evaluate the candidate on confidence, clarity, and leadership presence. After 6 exchanges give score and feedback.' },
 ];
 
 export default function FocusScreen() {
   const { theme } = useTheme();
   const { user, profile } = useAuth();
+  const params = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState('Wisdom');
-
   const userPlan = profile?.plan || 'trial';
+
+  useEffect(() => {
+    if (params.tab) {
+      setActiveTab(params.tab as string);
+    }
+    if (params.scenario) {
+      setActiveTab('Convo Lab');
+      // The ConvoLabView will handle auto-selection if we pass the param down
+    }
+  }, [params]);
 
   const canAccessPlan = (required: string) => {
     const order: Record<string, number> = { trial: 0, free_trial: 0, grind: 1, alpha: 2, sigma: 3 };
@@ -96,7 +126,7 @@ export default function FocusScreen() {
       <View style={styles.flex}>
         {activeTab === 'Wisdom' && <WisdomView theme={theme} user={user} />}
         {activeTab === 'Confidence' && <ConfidenceView theme={theme} user={user} canAccess={canAccessPlan} userPlan={userPlan} />}
-        {activeTab === 'Convo Lab' && <ConvoLabView theme={theme} user={user} canAccess={canAccessPlan} userPlan={userPlan} />}
+        {activeTab === 'Convo Lab' && <ConvoLabView theme={theme} user={user} canAccess={canAccessPlan} userPlan={userPlan} initialScenarioId={params.scenario} />}
       </View>
     </SafeAreaView>
   );
@@ -306,13 +336,23 @@ function ConfidenceView({ theme, user, canAccess, userPlan }: any) {
 }
 
 // ─── Convo Lab View ────────────────────────────────────────────────────────────
-function ConvoLabView({ theme, user, canAccess, userPlan }: any) {
+function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: any) {
   const [selectedScenario, setSelectedScenario] = useState<any>(null);
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (initialScenarioId && !selectedScenario) {
+      const found = SCENARIOS.find(s => s.id === initialScenarioId);
+      if (found && canAccess(found.plan)) {
+        setSelectedScenario(found);
+        setMessages([]);
+      }
+    }
+  }, [initialScenarioId]);
 
   const handleSend = async () => {
     if (!inputText.trim() || sending) return;

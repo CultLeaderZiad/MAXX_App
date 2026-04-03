@@ -35,7 +35,7 @@ export default function StatsScreen() {
       const { error } = await supabase
         .from('profiles')
         .update({
-          goals: JSON.parse(goalsRaw || '[]'),
+          goals: goalsRaw && goalsRaw.startsWith('[') ? JSON.parse(goalsRaw) : (goalsRaw ? [goalsRaw] : []),
           weak_spots: JSON.parse(weakSpotsRaw || '[]'),
           height_cm: heightUnit === 'cm' ? height : Math.round(height * 2.54),
           weight_kg: weightUnit === 'kg' ? weight : Math.round(weight / 2.205),
@@ -55,7 +55,8 @@ export default function StatsScreen() {
     }
   };
 
-  const Slider = require('react-native').View; // Placeholder, using text input + buttons
+  const isHtInCm = heightUnit === 'cm';
+  const isWtInKg = weightUnit === 'kg';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="stats-screen">

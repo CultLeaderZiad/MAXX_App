@@ -86,7 +86,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .eq('id', userId)
         .single();
       
-      if (error) {
+      if (error && error.code === 'PGRST116') {
+        // Profile not found, create default profile
+        const { data: userData } = await supabase.auth.getUser();
+        const metadata = userData?.user?.user_metadata;
+        
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: userData?.user?.email,
+            full_name: metadata?.full_name || 'Brother',
+            role: 'user',
+            xp: 0,
+            power_level: 0,
+            onboarding_completed: false,
+            rank: 'Beginner',
+            goals: [],
+            weak_spots: [],
+            workouts_completed: 0,
+            meditation_minutes: 0,
+            creatine_days: 0,
+            nofap_days: 0
+          })
+          .select()
+          .single();
+          
+        if (createError) {
+          console.error('Error creating profile:', createError);
+        } else {
+          setProfile(newProfile);
+        }
+      } else if (error) {
         console.error('Error fetching profile:', error);
       } else {
         setProfile(data);
