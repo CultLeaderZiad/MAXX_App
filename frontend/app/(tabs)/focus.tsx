@@ -450,6 +450,8 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [typing, setTyping] = useState(false);
+  const [showGuide, setShowGuide] = useState<string | null>(null);
+  const [scenarioFilter, setScenarioFilter] = useState<string>('all');
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -494,6 +496,8 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
   };
+
+  const filteredScenarios = scenarioFilter === 'all' ? SCENARIOS : SCENARIOS.filter(s => s.category === scenarioFilter);
 
   if (selectedScenario) {
     return (
@@ -557,11 +561,6 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
       </KeyboardAvoidingView>
     );
   }
-
-  const [showGuide, setShowGuide] = useState<string | null>(null);
-  const [scenarioFilter, setScenarioFilter] = useState<string>('all');
-
-  const filteredScenarios = scenarioFilter === 'all' ? SCENARIOS : SCENARIOS.filter(s => s.category === scenarioFilter);
 
   return (
     <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
