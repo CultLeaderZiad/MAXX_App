@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
-import { useTheme } from '../context/ThemeContext';
-import { RADIUS, SPACING } from '../constants/theme';
+import React from "react";
+import { View, StyleSheet, ViewStyle } from "react-native";
+import { useTheme } from "../context/ThemeContext";
+import { RADIUS, SPACING } from "../constants/theme";
 
 interface CardProps {
   children: React.ReactNode;
@@ -10,14 +10,22 @@ interface CardProps {
   testID?: string;
 }
 
-export const Card: React.FC<CardProps> = ({ children, selected, style, testID }) => {
+export const Card: React.FC<CardProps> = ({
+  children,
+  selected,
+  style,
+  testID,
+}) => {
   const { theme } = useTheme();
   return (
     <View
       testID={testID}
       style={[
         styles.card,
-        { backgroundColor: theme.bgSurface, borderColor: selected ? theme.borderActive : theme.border },
+        {
+          backgroundColor: theme.bgSurface,
+          borderColor: selected ? theme.borderActive : theme.border,
+        },
         selected && { borderColor: theme.borderActive },
         style,
       ]}

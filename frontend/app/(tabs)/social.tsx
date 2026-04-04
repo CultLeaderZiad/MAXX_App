@@ -62,7 +62,15 @@ export default function SocialScreen() {
     try {
       const { data, error } = await supabase
         .from('community_posts')
-        .select('*')
+        .select(`
+          *,
+          profiles:user_id (
+            full_name,
+            role,
+            avatar_url,
+            rank
+          )
+        `)
         .eq('is_flagged', false)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -231,8 +239,8 @@ export default function SocialScreen() {
           </View>
         ) : (
           posts.map((post: any) => {
-            const name = post.anon_display_name || post.profiles?.username || 'Brother';
-            const isAlpha = post.profiles?.plan === 'alpha';
+            const name = post.anon_display_name || post.profiles?.full_name || 'Brother';
+            const isAlpha = post.profiles?.role === 'admin' || post.profiles?.rank === 'Elite';
             return (
               <View key={post.id} style={[styles.postCard, { backgroundColor: theme.bgSurface, borderColor: isAlpha ? theme.gold : theme.border, borderWidth: isAlpha ? 1.5 : 1 }]}>
                 <View style={styles.postHeader}>
@@ -251,10 +259,19 @@ export default function SocialScreen() {
                   <Text style={[styles.postTime, { color: theme.textMuted }]}>
                     {post.created_at ? formatDistanceToNow(new Date(post.created_at)) + ' ago' : 'Recently'}
                   </Text>
-                  <TouchableOpacity onPress={() => handleRespect(post.id, post.respect_count || 0)} style={[styles.likeBtn, { backgroundColor: theme.bgElevated }]}>
-                    <Text style={{ fontSize: 14 }}>💪</Text>
-                    <Text style={[styles.likeText, { color: theme.textSecondary }]}>RESPECT • {post.respect_count || 0}</Text>
-                  </TouchableOpacity>
+                  
+                  <View style={styles.reactionRow}>
+                    {['💪', '🔥', '🏆', '🤝'].map(emoji => (
+                      <TouchableOpacity 
+                        key={emoji}
+                        onPress={() => handleRespect(post.id, post.respect_count || 0)} 
+                        style={[styles.miniReaction, { backgroundColor: theme.bgElevated }]}
+                      >
+                        <Text style={{ fontSize: 14 }}>{emoji}</Text>
+                        <Text style={[styles.reactionCount, { color: theme.textSecondary }]}>{post.respect_count || 0}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               </View>
             );
@@ -382,12 +399,24 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   title: { fontSize: 28, paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
   tabBar: { flexDirection: 'row', paddingHorizontal: SPACING.lg, marginTop: SPACING.md, gap: 8 },
-  tabBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10 },
+  tabBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, marginRight: 8 },
   tabText: { fontSize: 13 },
   tabContent: { padding: SPACING.lg, gap: SPACING.md },
   
   // Audit
   platformRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  backBtn: { padding: 8 },
+  navTitle: { fontSize: 18, color: '#FFF', fontFamily: FONTS.cinzelBold, marginLeft: 8 },
+  headerContent: { padding: 20 },
+  aiButton: { marginBottom: 24, borderRadius: 16, overflow: 'hidden' },
+  aiGradient: { padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  aiButtonTitle: { fontSize: 16, color: '#0A0A0A', fontFamily: FONTS.cinzelBold },
+  aiButtonSub: { fontSize: 12, color: 'rgba(10,10,10,0.6)', marginTop: 2, fontFamily: FONTS.regular },
+  categoryList: { marginBottom: 20 },
+  categoryPill: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#111', borderWidth: 1, borderColor: '#222', marginRight: 10 },
+  categoryPillActive: { backgroundColor: 'rgba(200,169,110,0.1)', borderColor: '#C8A96E' },
+  categoryPillText: { fontSize: 13, color: '#888', fontFamily: FONTS.semiBold },
+  categoryPillTextActive: { color: '#C8A96E' },
   platformBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1 },
   platformText: { fontSize: 12 },
   aiToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: SPACING.md },
@@ -420,9 +449,10 @@ const styles = StyleSheet.create({
   postFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   postTime: { fontSize: 11 },
   postActions: { flexDirection: 'row', gap: 12 },
-  likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10 },
-  likeText: { fontSize: 12, letterSpacing: 0.5 },
-  fab: { position: 'absolute', bottom: 28, right: 20, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, zIndex: 999 },
+  reactionRow: { flexDirection: 'row', gap: 6 },
+  miniReaction: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: RADIUS.sm },
+  reactionCount: { fontSize: 10, fontFamily: FONTS.semiBold },
+  fab: { position: 'absolute', bottom: 30, right: 20, width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 8, zIndex: 9999 },
   
   // Dating IQ
   lessonCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.lg },

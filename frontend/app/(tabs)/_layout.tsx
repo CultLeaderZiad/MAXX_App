@@ -1,23 +1,24 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { View, StyleSheet, Platform } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { useTheme } from '../../src/context/ThemeContext';
-import { FONTS } from '../../src/constants/theme';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React from "react";
+import { Tabs } from "expo-router";
+import { View, StyleSheet, Platform } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { useTheme } from "../../src/context/ThemeContext";
+import { FONTS } from "../../src/constants/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const TAB_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
-  index: 'home',
-  train: 'target',
-  focus: 'eye',
-  social: 'users',
-  profile: 'user',
+  index: "home",
+  train: "target",
+  focus: "eye",
+  social: "users",
+  profile: "user",
 };
 
 export default function TabLayout() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomPadding = insets.bottom > 0 ? insets.bottom + 8 : (Platform.OS === 'android' ? 16 : 30);
+  const bottomPadding =
+    insets.bottom > 0 ? insets.bottom + 8 : Platform.OS === "android" ? 16 : 30;
   const tabHeight = 60 + bottomPadding;
 
   return (
@@ -27,12 +28,12 @@ export default function TabLayout() {
         sceneStyle: { backgroundColor: theme.bgPrimary },
         tabBarStyle: {
           backgroundColor: theme.bgSurface,
-          borderTopColor: theme.border + '44',
+          borderTopColor: theme.border + "44",
           borderTopWidth: 1,
           height: tabHeight,
           paddingBottom: bottomPadding,
           paddingTop: 12,
-          position: 'absolute',
+          position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
@@ -40,28 +41,34 @@ export default function TabLayout() {
         },
         tabBarActiveTintColor: theme.gold,
         tabBarInactiveTintColor: theme.textMuted,
-        tabBarLabelStyle: { fontFamily: FONTS.medium, fontSize: 11, marginTop: 2 },
+        tabBarLabelStyle: {
+          fontFamily: FONTS.medium,
+          fontSize: 11,
+          marginTop: 2,
+        },
         tabBarIcon: ({ color, focused }) => {
-          const iconName = TAB_ICONS[route.name] || 'circle';
+          const iconName = TAB_ICONS[route.name] || "circle";
           return (
             <View style={styles.iconWrap}>
               <Feather name={iconName} size={20} color={color} />
-              {focused && <View style={[styles.dot, { backgroundColor: theme.gold }]} />}
+              {focused && (
+                <View style={[styles.dot, { backgroundColor: theme.gold }]} />
+              )}
             </View>
           );
         },
       })}
     >
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="train" options={{ title: 'Train' }} />
-      <Tabs.Screen name="focus" options={{ title: 'Focus' }} />
-      <Tabs.Screen name="social" options={{ title: 'Social' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      <Tabs.Screen name="index" options={{ title: "Home" }} />
+      <Tabs.Screen name="train" options={{ title: "Train" }} />
+      <Tabs.Screen name="focus" options={{ title: "Focus" }} />
+      <Tabs.Screen name="social" options={{ title: "Social" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  iconWrap: { alignItems: 'center', gap: 4 },
+  iconWrap: { alignItems: "center", gap: 4 },
   dot: { width: 4, height: 4, borderRadius: 2 },
 });

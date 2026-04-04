@@ -1,83 +1,164 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useTheme } from '../src/context/ThemeContext';
-import { useAuth } from '../context/AuthContext';
-import { Button } from '../src/components/Button';
-import { XPToast } from '../src/components/XPToast';
-import { CaptainCard } from '../src/components/CaptainCard';
-import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
-import { supabase } from '../lib/supabase';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Dimensions,
+  Animated,
+  Easing,
+  Platform,
+  ActivityIndicator
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { WebView } from "react-native-webview";
+import { useTheme } from "../src/context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
+import { Button } from "../src/components/Button";
+import { XPToast } from "../src/components/XPToast";
+import { CaptainCard } from "../src/components/CaptainCard";
+import { FONTS, SPACING, RADIUS } from "../src/constants/theme";
+import { supabase } from "../lib/supabase";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// Maintain 16:9 ratio for video
+const VIDEO_HEIGHT = (SCREEN_WIDTH - SPACING.lg * 2) * (9 / 16);
 
-// Curated YouTube video IDs for exercises (most viewed/rated)
-const EXERCISE_VIDEOS: Record<string, { videoId: string; title: string }> = {
-  // Jaw & Face
-  'mewing': { videoId: 'eh9OqEd5MKk', title: 'How to Mew Properly - Full Guide' },
-  'mewing : tongue posture': { videoId: 'eh9OqEd5MKk', title: 'How to Mew Properly - Full Guide' },
-  'tongue posture': { videoId: 'eh9OqEd5MKk', title: 'How to Mew Properly - Full Guide' },
-  'chewing exercise': { videoId: 'GEUF2v-6OUo', title: 'Jawline Chewing Exercise' },
-  'jawline exercise': { videoId: 'GEUF2v-6OUo', title: 'Jawline Exercise Guide' },
-  'jaw clenching': { videoId: 'GEUF2v-6OUo', title: 'Jaw Exercise Tutorial' },
-  'facial exercise': { videoId: '2JvO-FhST9A', title: 'Facial Exercise Routine' },
-  'chin tuck': { videoId: 'k3mqkYDkPsk', title: 'Chin Tuck Exercise Guide' },
-  'neck exercise': { videoId: 'k3mqkYDkPsk', title: 'Neck Strengthening Exercises' },
-  // Body
-  'push up': { videoId: 'IODxDxX7oi4', title: 'Perfect Push-up Form' },
-  'push ups': { videoId: 'IODxDxX7oi4', title: 'Perfect Push-up Form' },
-  'pull up': { videoId: 'eGo4IYlbE5g', title: 'Pull-up Technique Guide' },
-  'pull ups': { videoId: 'eGo4IYlbE5g', title: 'Pull-up Technique Guide' },
-  'squat': { videoId: 'ultWZbUMPL8', title: 'How to Squat Properly' },
-  'squats': { videoId: 'ultWZbUMPL8', title: 'How to Squat Properly' },
-  'plank': { videoId: 'ASdvN_XEl_c', title: 'Perfect Plank Form' },
-  'deadlift': { videoId: 'op9kVnSso6Q', title: 'Deadlift Form Guide' },
-  'bench press': { videoId: '4Y2ZdHCOXok', title: 'Bench Press Technique' },
-  'dip': { videoId: '2z8JmcrW-As', title: 'Dip Exercise Guide' },
-  'dips': { videoId: '2z8JmcrW-As', title: 'Dip Exercise Guide' },
-  'burpee': { videoId: 'dZgVxmf6jkA', title: 'Burpee Form Guide' },
-  'burpees': { videoId: 'dZgVxmf6jkA', title: 'Burpee Form Guide' },
-  'lunge': { videoId: 'QOVaHwm-Q6U', title: 'Lunge Form Guide' },
-  'lunges': { videoId: 'QOVaHwm-Q6U', title: 'Lunge Form Guide' },
-  // Posture
-  'posture correction': { videoId: 'RqcOCBb4arc', title: 'Fix Your Posture in 10 Minutes' },
-  'wall angel': { videoId: 'M_oCwl5R73E', title: 'Wall Angel Exercise' },
-  'wall angels': { videoId: 'M_oCwl5R73E', title: 'Wall Angel Exercise' },
-  'back stretch': { videoId: 'XeXz8fIZDCE', title: 'Back Stretching Routine' },
-  'thoracic extension': { videoId: 'LT_dFRnmdYI', title: 'Thoracic Extension Guide' },
-  'shoulder stretch': { videoId: 'SzYqMhI8XKk', title: 'Shoulder Mobility Routine' },
-  'hip flexor stretch': { videoId: 'UGEpQ1BRx-4', title: 'Hip Flexor Stretch Guide' },
+// ─── HIGH-FIDELITY EXERCISE VIDEO LIBRARY ────────────────────────────────────
+interface ExerciseVideoEntry {
+  videoId: string;
+  title: string;
+  guidelines: string[];
+  formCues: string[];
+  commonMistakes: string[];
+}
+
+const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
+  // ─── FACIAL VECTORS ──────────────────────────────────────────────────────────
+  mewing: {
+    videoId: "eh9OqEd5MKk",
+    title: "Genetic Jaw Alignment (Mewing)",
+    guidelines: [
+      "Suction entire tongue to palate",
+      "Teeth should not overlap, but lightly touch",
+      "Engage the posterior third of the tongue",
+    ],
+    formCues: ["Vacuum seal tongue", "Nose breathe only"],
+    commonMistakes: ["Tongue tip pressure only", "Clenching teeth"],
+  },
+  "tongue posture": {
+    videoId: "eh9OqEd5MKk",
+    title: "Structural Palate Support",
+    guidelines: ["Maintain suction hold throughout", "Flatten tongue against palate"],
+    formCues: ["Seal the back of the throat"],
+    commonMistakes: ["Mouth breathing"],
+  },
+  "jawline exercise": {
+    videoId: "GEUF2v-6OUo",
+    title: "Masseter Hypertrophy Protocol",
+    guidelines: ["Controlled bite resistance", "Focus on the jaw angle", "Balanced chewing"],
+    formCues: ["Squeeze masseters", "Even pressure"],
+    commonMistakes: ["Overtraining", "Jaw clicking"],
+  },
+  "chin tuck": {
+    videoId: "k3mqkYDkPsk",
+    title: "Cervical Spine Optimization",
+    guidelines: ["Pull chin straight back toward spine", "Lengthen the back of the neck"],
+    formCues: ["Imagine a string pulling head up"],
+    commonMistakes: ["Tilting head down", "Shoulder shrugging"],
+  },
+
+  // ─── PHARMACEUTICAL/BODY VECTORS ──────────────────────────────────────────────
+  "push up": {
+    videoId: "IODxDxX7oi4",
+    title: "Tactical Push-Up Mechanics",
+    guidelines: ["Elbows at 45 degree angle", "Full extension at top", "Core fully engaged"],
+    formCues: ["Screw hands into floor", "Chest to floor"],
+    commonMistakes: ["Sagging hips", "Flared elbows"],
+  },
+  "pull up": {
+    videoId: "eGo4IYlbE5g",
+    title: "Latissimus Dorsi Optimization",
+    guidelines: ["Full dead hang", "Pull until chest reaches bar", "Stretch at bottom"],
+    formCues: ["Pull through elbows", "Scapular retraction"],
+    commonMistakes: ["Kicking legs", "Half reps"],
+  },
+  squat: {
+    videoId: "ultWZbUMPL8",
+    title: "Kinetic Lower Body Drive",
+    guidelines: ["Weight on midfoot/heels", "Hips back first", "Keep chest proud"],
+    formCues: ["Spread the floor", "Brace core"],
+    commonMistakes: ["Heels lifting", "Knees caving"],
+  },
+  deadlift: {
+    videoId: "op9kVnSso6Q",
+    title: "Posterior Chain Force Production",
+    guidelines: ["Shin contact with bar", "Hinge at hips", "Engage lats before pull"],
+    formCues: ["Push through the floor", "Tuck chin"],
+    commonMistakes: ["Cat back", "Bending elbows"],
+  },
+  "bench press": {
+    videoId: "vcBig73ojpE",
+    title: "Pectoral Vector Drive",
+    guidelines: ["Shoulder blades pinned", "Feet planted", "Control the eccentric"],
+    formCues: ["Break the bar", "Leg drive"],
+    commonMistakes: ["Lifting glutes", "Bouncing off sternum"],
+  },
+  "bicep curl": {
+    videoId: "ykJmrZ5v0Oo",
+    title: "Peak Bicep Hypertrophy",
+    guidelines: ["Full elbow extension", "No body momentum", "Focus on the squeeze"],
+    formCues: ["Elbows pinned", "Rotate pinky up"],
+    commonMistakes: ["Using legs", "Partial range"],
+  },
+  plank: {
+    videoId: "ASdvN_XEl_c",
+    title: "Total Core Isometrics",
+    guidelines: ["Tuck pelvis", "Forearms parallel", "Neutral spine"],
+    formCues: ["Brace for a punch", "Squeeze glutes"],
+    commonMistakes: ["Head drop", "Arching back"],
+  },
 };
 
-function findVideoForExercise(name: string): { videoId: string; title: string } | null {
-  if (!name) return null;
+function findVideoForExercise(name: string): ExerciseVideoEntry {
+  const DEFAULT = EXERCISE_VIDEO_LIBRARY["mewing"];
+  if (!name) return DEFAULT;
   const lower = name.toLowerCase().trim();
+
+  // Try exact or partial match in library
+  const match = Object.keys(EXERCISE_VIDEO_LIBRARY).find(k => lower.includes(k) || k.includes(lower));
+  if (match) return EXERCISE_VIDEO_LIBRARY[match];
+
+  // Logic to categorize if no direct match
+  const jawCat = ["jaw", "face", "face", "mew", "tongue", "chin", "chew", "chewing"];
+  if (jawCat.some(k => lower.includes(k))) return EXERCISE_VIDEO_LIBRARY["mewing"];
   
-  // Exact match
-  if (EXERCISE_VIDEOS[lower]) return EXERCISE_VIDEOS[lower];
-  
-  // Partial match
-  for (const [key, val] of Object.entries(EXERCISE_VIDEOS)) {
-    if (lower.includes(key) || key.includes(lower)) return val;
-  }
-  
-  return null;
+  const pushCat = ["push", "press", "chest", "bench", "shoulder"];
+  if (pushCat.some(k => lower.includes(k))) return EXERCISE_VIDEO_LIBRARY["push up"];
+
+  const pullCat = ["pull", "row", "lat", "bicep", "curl", "back"];
+  if (pullCat.some(k => lower.includes(k))) return EXERCISE_VIDEO_LIBRARY["pull up"];
+
+  const legCat = ["squat", "leg", "quad", "calf", "deadlift", "lung", "glute"];
+  if (legCat.some(k => lower.includes(k))) return EXERCISE_VIDEO_LIBRARY["squat"];
+
+  return DEFAULT;
 }
 
 export default function ExerciseScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ 
-    id: string; 
-    name: string; 
-    sets: string; 
-    hold: string; 
-    rest: string; 
+  const params = useLocalSearchParams<{
+    id: string;
+    name: string;
+    sets: string;
+    reps: string;
+    rest: string;
     xp: string;
     description?: string;
     coach_note?: string;
@@ -85,34 +166,40 @@ export default function ExerciseScreen() {
     youtube_id?: string;
   }>();
 
-  const totalSets = parseInt(params.sets || '3');
-  const xpReward = parseInt(params.xp || '40');
-
-  const [phase, setPhase] = useState<'video' | 'workout'>('video');
+  const totalSets = parseInt(params.sets || "3");
+  const xpReward = parseInt(params.xp || "40");
+  const [phase, setPhase] = useState<"video" | "workout">("video");
   const [currentSet, setCurrentSet] = useState(1);
   const [completed, setCompleted] = useState(false);
   const [showXP, setShowXP] = useState(false);
-  
+  const [showGuidelines, setShowGuidelines] = useState(true);
+  const [webViewLoading, setWebViewLoading] = useState(true);
+
   // Timer state
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
   const timerDuration = params.rest ? parseInt(params.rest) : 60;
 
+  // Pulse animation for timer
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
   // Get the video for this exercise
-  const videoData = params.youtube_id 
-    ? { videoId: params.youtube_id, title: params.name || 'Exercise' }
-    : findVideoForExercise(params.name || '');
+  const videoData = params.youtube_id
+    ? ({
+        videoId: params.youtube_id,
+        title: params.name || "Dynamic Force Protocol",
+        guidelines: ["Execute with tactical precision", "Maintain biological equilibrium"],
+        formCues: ["Engage stabilizers"],
+        commonMistakes: ["Compromising joint integrity"],
+      } as ExerciseVideoEntry)
+    : findVideoForExercise(params.name || "");
 
-  // Fallback: use a search-based embed if no specific video found
-  const videoEmbedUrl = videoData 
-    ? `https://www.youtube.com/embed/${videoData.videoId}?rel=0&modestbranding=1&playsinline=1`
-    : `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(params.name + ' exercise tutorial')}&rel=0&modestbranding=1`;
-
-  React.useEffect(() => {
+  // Timer effect
+  useEffect(() => {
     let interval: any = null;
     if (timerActive && timeLeft > 0) {
       interval = setInterval(() => {
-        setTimeLeft(time => time - 1);
+        setTimeLeft((time) => time - 1);
       }, 1000);
     } else if (timeLeft === 0 && timerActive) {
       setTimerActive(false);
@@ -121,26 +208,35 @@ export default function ExerciseScreen() {
     return () => clearInterval(interval);
   }, [timerActive, timeLeft]);
 
-  const startRestTimer = () => {
-    setTimeLeft(timerDuration);
-    setTimerActive(true);
-    Haptics.selectionAsync();
-  };
+  // Pulse animation loop
+  useEffect(() => {
+    if (timerActive) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.05, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        ]),
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [timerActive]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
   const handleNextSet = () => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      if (currentSet < totalSets) {
-          setCurrentSet(currentSet + 1);
-          startRestTimer();
-      } else {
-          finishWorkout();
-      }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (currentSet < totalSets) {
+      setCurrentSet(currentSet + 1);
+      setTimeLeft(timerDuration);
+      setTimerActive(true);
+    } else {
+      finishWorkout();
+    }
   };
 
   const finishWorkout = async () => {
@@ -148,164 +244,170 @@ export default function ExerciseScreen() {
     setCompleted(true);
     setShowXP(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
+
     if (user && params.id) {
-        try {
-            await supabase.from('workout_completions').insert({
-                user_id: user.id,
-                exercise_id: params.id,
-                xp_earned: xpReward,
-                completed_at: new Date().toISOString()
-            });
-            
-            await supabase.from('xp_log').insert({
-                user_id: user.id,
-                amount: xpReward,
-                source: 'workout',
-                description: `Completed ${params.name}`
-            });
-        } catch (e) {
-            console.log('Error logging workout', e);
-        }
+      try {
+        await supabase.from("workout_completions").insert({
+          user_id: user.id,
+          exercise_id: params.id,
+          workout_id: params.id, // Fallback
+          xp_earned: xpReward,
+          completed_at: new Date().toISOString(),
+        });
+
+        await supabase.from("xp_log").insert({
+          user_id: user.id,
+          amount: xpReward,
+          reason: `Mission: ${params.name || "Exercise"}`,
+        });
+      } catch (e) {
+        console.log("Error logging workout", e);
+      }
     }
   };
 
-  const handleStartWorkout = () => {
-    setPhase('workout');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const handlePhaseChange = (newPhase: "video" | "workout") => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPhase(newPhase);
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="exercise-screen">
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
       <XPToast amount={xpReward} visible={showXP} onDone={() => setShowXP(false)} />
-      
+
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.gold} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>
-          {phase === 'video' ? 'WATCH & LEARN' : 'WORKOUT'}
-        </Text>
-        <View style={{ width: 44 }} />
+        <View style={styles.headerTitleWrap}>
+          <Text style={[styles.headerTitle, { color: theme.textSecondary, fontFamily: FONTS.cinzelBold }]}>
+            {params.name?.toUpperCase() || "MISSION"}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={() => setShowGuidelines(!showGuidelines)} style={styles.backBtn}>
+          <Feather name="shield" size={20} color={theme.gold} />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.exName, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>{params.name || 'Exercise'}</Text>
-        
-        {/* Phase indicator */}
-        <View style={styles.phaseRow}>
-          <View style={[styles.phasePill, { backgroundColor: phase === 'video' ? theme.gold : theme.bgElevated }]}>
-            <Text style={[styles.phaseText, { color: phase === 'video' ? '#0A0A0A' : theme.textMuted, fontFamily: FONTS.semiBold }]}>1. WATCH</Text>
-          </View>
-          <View style={[styles.phaseLine, { backgroundColor: theme.border }]} />
-          <View style={[styles.phasePill, { backgroundColor: phase === 'workout' ? theme.gold : theme.bgElevated }]}>
-            <Text style={[styles.phaseText, { color: phase === 'workout' ? '#0A0A0A' : theme.textMuted, fontFamily: FONTS.semiBold }]}>2. TRAIN</Text>
-          </View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Phase Tabs */}
+        <View style={[styles.tabBar, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+          <TouchableOpacity onPress={() => handlePhaseChange("video")} style={[styles.tabItem, phase === "video" && { backgroundColor: theme.gold }]}>
+              <Text style={[styles.tabText, { color: phase === "video" ? "#000" : theme.textMuted, fontFamily: FONTS.bold }]}>BIO-FORM VIDEO</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handlePhaseChange("workout")} style={[styles.tabItem, phase === "workout" && { backgroundColor: theme.gold }]}>
+              <Text style={[styles.tabText, { color: phase === "workout" ? "#000" : theme.textMuted, fontFamily: FONTS.bold }]}>EXECUTE MISSION</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* PHASE 1: Video Guide */}
-        {phase === 'video' && (
-          <>
-            <View style={[styles.videoContainer, { borderColor: theme.gold + '44' }]}>
-              <WebView 
-                source={{ uri: videoEmbedUrl }}
-                style={{ flex: 1 }}
-                allowsFullscreenVideo={true}
-                javaScriptEnabled={true}
-                domStorageEnabled={true}
-                mediaPlaybackRequiresUserAction={false}
-                allowsInlineMediaPlayback={true}
+        {phase === "video" ? (
+          <View style={styles.videoSection}>
+            <View style={[styles.videoWrapper, { borderColor: theme.gold + "15", backgroundColor: "#000" }]}>
+              {webViewLoading && (
+                  <View style={styles.videoLoader}>
+                      <ActivityIndicator color={theme.gold} size="large" />
+                  </View>
+              )}
+              <WebView
+                allowsFullscreenVideo
+                allowsInlineMediaPlayback
+                javaScriptEnabled
+                domStorageEnabled
+                scrollEnabled={false}
+                onLoad={() => setWebViewLoading(false)}
+                userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+                source={{
+                    uri: `https://www.youtube.com/embed/${videoData.videoId}?rel=0&autoplay=1&showinfo=0&controls=1&modestbranding=1&playsinline=1&origin=${Platform.OS === 'ios' ? 'http://localhost' : 'http://localhost:19006'}`
+                }}
+                style={{ flex: 1, backgroundColor: '#000' }}
               />
             </View>
 
-            {videoData && (
-              <Text style={[styles.videoTitle, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>
-                📺 {videoData.title}
-              </Text>
-            )}
+            <View style={styles.guideContainer}>
+                <Text style={[styles.guideHeader, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>TACTICAL PROTOCOL</Text>
+                {videoData.guidelines.map((g, i) => (
+                    <View key={i} style={styles.bulletRow}>
+                        <View style={[styles.bulletPoint, { backgroundColor: theme.gold }]} />
+                        <Text style={[styles.bulletLabel, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{g}</Text>
+                    </View>
+                ))}
 
-            {/* Instructions */}
-            <View style={[styles.instructionBox, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-              <View style={styles.instructionRow}>
-                <Feather name="eye" size={16} color={theme.gold} />
-                <Text style={[styles.instructionText, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
-                  Watch the form guide carefully before starting
-                </Text>
-              </View>
-              <View style={styles.instructionRow}>
-                <Feather name="target" size={16} color={theme.gold} />
-                <Text style={[styles.instructionText, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>
-                  {params.description || "Focus on proper form over speed. Quality reps build quality physique."}
-                </Text>
-              </View>
-              {params.pro_tip && (
-                <View style={styles.instructionRow}>
-                  <Feather name="award" size={16} color={theme.gold} />
-                  <Text style={[styles.instructionText, { color: theme.gold, fontFamily: FONTS.medium }]}>
-                    PRO TIP: {params.pro_tip}
-                  </Text>
+                <View style={[styles.proTipBox, { backgroundColor: theme.gold + '08', borderColor: theme.gold + '22' }]}>
+                    <Text style={{ color: theme.gold, fontSize: 10, fontFamily: FONTS.bold, letterSpacing: 2 }}>GENOME NOTE</Text>
+                    <Text style={{ color: theme.textSecondary, fontSize: 13, marginTop: 6, lineHeight: 20 }}>
+                        {params.pro_tip || "Maximize mind-muscle connection. Control every millisecond of the movement."}
+                    </Text>
                 </View>
-              )}
             </View>
 
-            <View style={{ width: '100%', paddingHorizontal: SPACING.md, marginTop: SPACING.lg }}>
-              <Button title="I'VE WATCHED — START WORKOUT" onPress={handleStartWorkout} />
-            </View>
-          </>
-        )}
-
-        {/* PHASE 2: Workout Execution */}
-        {phase === 'workout' && (
-          <>
-            <View style={[styles.setPill, { backgroundColor: theme.bgElevated, marginVertical: SPACING.md }]}>
-                <Text style={[styles.setLabel, { color: theme.textPrimary, fontFamily: FONTS.medium }]}>
-                    SET {currentSet} OF {totalSets}
-                </Text>
-            </View>
-
-            {/* Set progress dots */}
-            <View style={styles.setDots}>
-              {Array.from({ length: totalSets }).map((_, i) => (
-                <View key={i} style={[styles.setDot, { 
-                  backgroundColor: i < currentSet ? theme.gold : theme.bgElevated,
-                  borderColor: i === currentSet - 1 ? theme.gold : theme.border
-                }]} />
-              ))}
-            </View>
-
-            {/* Timer UI Element */}
-            {timerActive ? (
-              <View style={[styles.timerCircle, { borderColor: theme.gold }]}>
-                  <Text style={[styles.timerText, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
-                      {formatTime(timeLeft)}
-                  </Text>
-                  <Text style={{ color: theme.textMuted, fontSize: 12, fontFamily: FONTS.medium }}>RESTING</Text>
-              </View>
-            ) : null}
-
+            <TouchableOpacity 
+                onPress={() => handlePhaseChange("workout")}
+                style={[styles.confirmBtn, { backgroundColor: theme.gold }]}
+                activeOpacity={0.9}
+            >
+                <Text style={{ color: "#000", fontFamily: FONTS.bold, fontSize: 16, letterSpacing: 1 }}>CONFIRM FORM & START</Text>
+                <Feather name="arrow-right" size={20} color="#000" style={{ marginLeft: 10 }} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.workoutSection}>
             {completed ? (
-              <View style={styles.doneSection}>
-                <View style={[styles.doneBadge, { backgroundColor: theme.green + '22' }]}>
-                  <Feather name="check-circle" size={48} color={theme.green} />
+              <View style={styles.doneContainer}>
+                <View style={[styles.doneIconWrap, { borderColor: theme.gold }]}>
+                    <Feather name="check-circle" size={60} color={theme.gold} />
                 </View>
-                <Text style={[styles.doneText, { color: theme.green, fontFamily: FONTS.cinzelBold }]}>EXERCISE COMPLETE</Text>
-                <Text style={[styles.doneSub, { color: theme.textMuted, fontFamily: FONTS.medium }]}>+{xpReward} XP Earned</Text>
-                <Button title="FINISH" onPress={() => router.back()} style={{ width: '100%', marginTop: SPACING.lg }} />
+                <Text style={[styles.doneHeading, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>EVOLUTION LOGGED</Text>
+                <Text style={[styles.doneInfo, { color: theme.textMuted }]}>
+                  Vector engagement confirmed. +{xpReward} XP synced to your profile.
+                </Text>
+                <Button title="COMPLETE SESSION" onPress={() => router.back()} style={{ width: "100%", marginTop: 40 }} />
               </View>
             ) : (
-              <View style={styles.controls}>
-                 {!timerActive && (
-                     <Button title={currentSet < totalSets ? `COMPLETE SET ${currentSet} / ${totalSets}` : "FINISH EXERCISE"} onPress={handleNextSet} />
-                 )}
-              </View>
-            )}
+              <>
+                <View style={styles.displayRow}>
+                  <View style={styles.displayItem}>
+                    <Text style={[styles.displayLabel, { color: theme.textMuted }]}>SET VECTOR</Text>
+                    <Text style={[styles.displayValue, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>
+                      {currentSet}<Text style={{ fontSize: 16, color: theme.textMuted }}> / {totalSets}</Text>
+                    </Text>
+                  </View>
+                  <View style={[styles.vLine, { backgroundColor: theme.border }]} />
+                  <View style={styles.displayItem}>
+                    <Text style={[styles.displayLabel, { color: theme.textMuted }]}>INTENSITY</Text>
+                    <Text style={[styles.displayValue, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>
+                      {params.reps || "MAX"}
+                    </Text>
+                  </View>
+                </View>
 
-            <View style={styles.infoSection}>
-                <CaptainCard title="Coach Note">
-                    {params.coach_note || "Focus on form. Don't cheat the reps."}
+                {timerActive ? (
+                  <View style={styles.timerWrap}>
+                    <Animated.View style={[styles.timerPulse, { transform: [{ scale: pulseAnim }], borderColor: theme.gold }]}>
+                        <Text style={[styles.timerDigit, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
+                        {formatTime(timeLeft)}
+                        </Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 10, letterSpacing: 3, marginTop: 4 }}>RE-CALIBRATING</Text>
+                    </Animated.View>
+                    <TouchableOpacity onPress={() => setTimerActive(false)} style={styles.skipTimer}>
+                        <Text style={{ color: theme.textMuted, fontSize: 13, textDecorationLine: 'underline' }}>Skip Recovery</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.executeWrap}>
+                    <TouchableOpacity onPress={handleNextSet} style={[styles.executeBtn, { backgroundColor: theme.gold }]}>
+                      <Text style={{ color: "#000", fontFamily: FONTS.bold, fontSize: 20 }}>
+                        {currentSet === totalSets ? "TERMINATE PROTOCOL" : "SET COMPLETE"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <CaptainCard title="COACH TRANSMISSION">
+                  {params.coach_note || "Focus on the biological response. Feel the structural tension."}
                 </CaptainCard>
-            </View>
-          </>
+              </>
+            )}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -314,34 +416,38 @@ export default function ExerciseScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
-  backBtn: { width: 44, height: 44, justifyContent: 'center' },
-  headerTitle: { fontSize: 16, letterSpacing: 1 },
-  content: { flexGrow: 1, alignItems: 'center', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xxl },
-  exName: { fontSize: 22, textAlign: 'center', marginVertical: SPACING.sm },
-
-  phaseRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: SPACING.md, gap: 8 },
-  phasePill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  phaseText: { fontSize: 11, letterSpacing: 1 },
-  phaseLine: { width: 30, height: 2, borderRadius: 1 },
-
-  videoContainer: { width: '100%', aspectRatio: 16/9, borderRadius: RADIUS.lg, overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#000', marginTop: SPACING.sm },
-  videoTitle: { fontSize: 13, textAlign: 'center', marginTop: SPACING.sm },
-
-  instructionBox: { width: '100%', borderRadius: 14, borderWidth: 1, padding: SPACING.md, marginTop: SPACING.lg, gap: 12 },
-  instructionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  instructionText: { flex: 1, fontSize: 13, lineHeight: 20 },
-
-  setPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
-  setLabel: { fontSize: 14, letterSpacing: 1 },
-  setDots: { flexDirection: 'row', gap: 8, marginBottom: SPACING.md },
-  setDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
-  controls: { gap: SPACING.md, width: '100%', maxWidth: 300 },
-  doneSection: { alignItems: 'center', gap: SPACING.sm, width: '100%', paddingVertical: SPACING.xl },
-  doneBadge: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  doneText: { fontSize: 24 },
-  doneSub: { fontSize: 16 },
-  infoSection: { width: '100%', marginTop: SPACING.xxl, gap: SPACING.lg },
-  timerCircle: { width: 140, height: 140, borderRadius: 70, borderWidth: 4, alignItems: 'center', justifyContent: 'center', marginVertical: SPACING.md },
-  timerText: { fontSize: 32, marginBottom: 4 }
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
+  backBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
+  headerTitleWrap: { flex: 1, alignItems: "center" },
+  headerTitle: { fontSize: 12, letterSpacing: 2 },
+  content: { paddingHorizontal: 20, paddingBottom: 60 },
+  tabBar: { flexDirection: "row", height: 50, borderRadius: 14, borderWidth: 1, overflow: "hidden", marginBottom: 25 },
+  tabItem: { flex: 1, justifyContent: "center", alignItems: "center" },
+  tabText: { fontSize: 11, letterSpacing: 1 },
+  videoSection: { width: "100%" },
+  videoWrapper: { width: "100%", borderRadius: 20, borderWidth: 1, overflow: "hidden", height: VIDEO_HEIGHT, shadowColor: "#000", shadowOpacity: 0.5, shadowRadius: 15, elevation: 10 },
+  videoLoader: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 10, backgroundColor: '#000' },
+  guideContainer: { marginTop: 30 },
+  guideHeader: { fontSize: 15, letterSpacing: 3, marginBottom: 20 },
+  bulletRow: { flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 14 },
+  bulletPoint: { width: 6, height: 6, borderRadius: 3 },
+  bulletLabel: { fontSize: 14, lineHeight: 22 },
+  proTipBox: { marginTop: 20, padding: 20, borderRadius: 18, borderLeftWidth: 4 },
+  confirmBtn: { marginTop: 40, height: 60, borderRadius: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  workoutSection: { width: "100%", alignItems: "center" },
+  displayRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", paddingVertical: 30 },
+  displayItem: { flex: 1, alignItems: "center" },
+  displayLabel: { fontSize: 10, letterSpacing: 2, marginBottom: 8, fontFamily: FONTS.bold },
+  displayValue: { fontSize: 32 },
+  vLine: { width: 1, height: 45, opacity: 0.2 },
+  timerWrap: { marginVertical: 30, alignItems: 'center' },
+  timerPulse: { width: 220, height: 220, borderRadius: 110, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  timerDigit: { fontSize: 56 },
+  skipTimer: { marginTop: 25, padding: 10 },
+  executeWrap: { width: '100%', height: 250, justifyContent: 'center', alignItems: 'center' },
+  executeBtn: { width: '100%', paddingVertical: 24, borderRadius: 22, alignItems: 'center', shadowColor: '#C8A96E', shadowOpacity: 0.4, shadowRadius: 20, elevation: 12 },
+  doneContainer: { alignItems: "center", paddingVertical: 40 },
+  doneIconWrap: { width: 120, height: 120, borderRadius: 60, borderWidth: 2, justifyContent: 'center', alignItems: 'center', marginBottom: 30 },
+  doneHeading: { fontSize: 24, textAlign: "center", letterSpacing: 2 },
+  doneInfo: { fontSize: 14, textAlign: "center", marginTop: 12, lineHeight: 22, opacity: 0.7 },
 });

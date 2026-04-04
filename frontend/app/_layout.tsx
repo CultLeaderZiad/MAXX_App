@@ -1,5 +1,5 @@
 import { Slot, useRouter, useSegments, Stack } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -20,32 +20,36 @@ function RootLayoutNav() {
   const { theme, mode, isReady: themeReady } = useTheme();
   const router = useRouter();
   const segments = useSegments();
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
     if (loading) return;
 
+    // Prevent multiple rapid navigations
     const currentSegment = segments[0] as string | undefined;
     const isPublic = !currentSegment || currentSegment === 'index' || currentSegment === 'otp' || currentSegment === 'login' || currentSegment === 'register';
+    const isOnboarding = currentSegment === 'goals' || currentSegment === 'weakspots' || currentSegment === 'plans' || currentSegment === 'payment' || currentSegment === 'stats';
 
     if (!session && !isPublic) {
       router.replace('/');
-    } else if (session) {
-      // Logic for authenticated users
-      const isOnboarding = currentSegment === 'goals' || currentSegment === 'weakspots' || currentSegment === 'plans' || currentSegment === 'payment';
-      
+      return;
+    }
+    
+    if (session) {
       if (profile && !profile.onboarding_completed) {
-        // User needs to onboard. If they aren't on an onboarding screen, force them there.
         if (!isOnboarding) {
           router.replace('/goals');
         }
       } else if (profile?.onboarding_completed) {
-        // User has onboarded. If they are on a public page or an onboarding page (except plans/payment), send to app.
-        if (isPublic || (isOnboarding && currentSegment !== 'plans' && currentSegment !== 'payment')) {
+        if (isPublic) {
           router.replace('/(tabs)');
         }
       }
     }
-  }, [session, profile, loading, segments]);
+  }, [session, profile, loading]);
+  // NOTE: Removed `segments` from dep array — this was causing the "flash" 
+  // since every route change triggered the effect, which then immediately
+  // navigated again, creating a visual flash loop.
 
   useEffect(() => {
     if (themeReady && !loading) {
@@ -82,18 +86,24 @@ function RootLayoutNav() {
         <Stack screenOptions={{ 
           headerShown: false, 
           contentStyle: { backgroundColor: theme.bgPrimary },
-          animation: 'fade',
-          animationDuration: 200,
+          animation: 'fade_from_bottom',
+          animationDuration: 250,
         }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="otp" />
-          <Stack.Screen name="goals" />
-          <Stack.Screen name="weakspots" />
-          <Stack.Screen name="stats" />
-          <Stack.Screen name="plans" />
+          <Stack.Screen name="index" options={{ animation: 'none' }} />
+          <Stack.Screen name="otp" options={{ animation: 'fade' }} />
+          <Stack.Screen name="login" options={{ animation: 'fade' }} />
+          <Stack.Screen name="register" options={{ animation: 'fade' }} />
+          <Stack.Screen name="goals" options={{ animation: 'fade' }} />
+          <Stack.Screen name="weakspots" options={{ animation: 'fade' }} />
+          <Stack.Screen name="stats" options={{ animation: 'fade' }} />
+          <Stack.Screen name="plans" options={{ animation: 'fade' }} />
           <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
-          <Stack.Screen name="exercise" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="exercise" options={{ presentation: 'modal', animation: 'slide_from_bottom', animationDuration: 300 }} />
           <Stack.Screen name="emergency" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="nofap" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="supplements" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="support" options={{ animation: 'slide_from_right' }} />
         </Stack>
       </NavigationThemeProvider>
     </>
@@ -132,4 +142,3 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
-

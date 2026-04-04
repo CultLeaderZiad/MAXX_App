@@ -47,42 +47,141 @@ const CONFIDENCE_MODULES = [
     id: 6, title: 'Sigma Presence', plan: 'sigma', duration: '7 min', xp: 50,
     content: 'Sigma is not a social rank. It is an operating mode.\n\nThe Sigma does not need the room to recognize him. He is not performing for the room.\n\nThis is the endpoint of all confidence work.',
     challenge: 'Define one personal standard today that you will not explain to anyone.'
+  },
+  {
+    id: 7, title: 'Voice Tonality Mastery', plan: 'grind', duration: '5 min', xp: 35,
+    content: 'Your voice is your instrument of influence. A deep, steady tone communicates authority.\n\nSpeak from your diaphragm, not your throat. Drop your pitch at the end of sentences — rising pitch sounds uncertain.\n\nPace: slightly slower than conversational speed. Pauses are power.',
+    challenge: 'Record yourself talking for 2 minutes. Listen back. Identify one thing to improve.'
+  },
+  {
+    id: 8, title: 'Emotional Control Under Pressure', plan: 'grind', duration: '6 min', xp: 40,
+    content: 'Emotions are data, not directives. The man who reacts emotionally has given away his power.\n\nWhen provoked: breathe once, think twice, speak once.\n\nNever make a decision in the peak of emotion. The strongest response is often no response at all.',
+    challenge: 'Today, when you feel irritated or anxious, wait 10 seconds before responding to anything.'
+  },
+  {
+    id: 9, title: 'Storytelling & Narrative Power', plan: 'alpha', duration: '7 min', xp: 45,
+    content: 'Facts tell. Stories sell. The most charismatic people in any room are storytellers.\n\nStructure: Setup → Tension → Resolution. Every story needs a lesson or emotional peak.\n\nDetails matter: "a red 1967 Mustang" hits harder than "a car."',
+    challenge: 'Prepare one 2-minute personal story. Tell it to someone today. Notice their reaction.'
+  },
+  {
+    id: 10, title: 'The Abundance Mindset', plan: 'sigma', duration: '8 min', xp: 55,
+    content: 'Scarcity thinking: "She is the only one. I cannot lose this opportunity."\n\nAbundance thinking: "This is one of many opportunities. If this does not work, another will."\n\nAbundance is not arrogance. It is the deep knowing that your value does not depend on any single outcome.\n\nThis applies to women, jobs, friendships, and investments. The man with options never seems desperate — because he is not.',
+    challenge: 'Identify one area where you are operating from scarcity. Write down 3 alternative options you have not considered.'
   }
 ];
 
 // ─── Convo Scenarios ──────────────────────────────────────────────────────────
 const SCENARIOS = [
-  { id: 'first_date', title: 'First Date', difficulty: 'EASY', desc: 'Break the ice and build rapport over coffee.', plan: 'trial',
+  { id: 'first_date', title: 'First Date', difficulty: 'EASY', desc: 'Break the ice and build rapport over coffee.', plan: 'trial', category: 'dating',
     prompt: 'You are a young woman on a first date at a coffee shop. React realistically — sometimes engaged, sometimes reserved. After 8 exchanges give a score 1-10 and feedback.' },
-  { id: 'cold_approach', title: 'Street Cold Approach', difficulty: 'HARD', desc: 'Stop her on the street naturally.', plan: 'trial',
+  { id: 'cold_approach', title: 'Street Cold Approach', difficulty: 'HARD', desc: 'Stop her on the street naturally.', plan: 'trial', category: 'dating',
     prompt: 'You are a young woman walking on a street. A man just stopped you. You are slightly surprised. React naturally. After 6 exchanges give feedback on the opener and delivery.' },
-  { id: 'gym_approach', title: 'Gym Approach', difficulty: 'HARD', desc: 'Navigate the tricky gym environment.', plan: 'grind',
+  { id: 'gym_approach', title: 'Gym Approach', difficulty: 'HARD', desc: 'Navigate the tricky gym environment.', plan: 'grind', category: 'dating',
     prompt: 'You are a woman working out at the gym in between sets. A guy approaches you. Be slightly guarded but open if his social calibration is perfect. After 6 exchanges give feedback.' },
-  { id: 'bar_approach', title: 'Bar / Club Approach', difficulty: 'MEDIUM', desc: 'High energy environment, push through the noise.', plan: 'grind',
+  { id: 'bar_approach', title: 'Bar / Club Approach', difficulty: 'MEDIUM', desc: 'High energy environment, push through the noise.', plan: 'grind', category: 'dating',
     prompt: 'You are a woman at a loud bar. You are with a friend. A guy approaches. React to his energy. Give feedback after 6 exchanges.' },
-  { id: 'library_approach', title: 'Library / Bookstore Approach', difficulty: 'MEDIUM', desc: 'Low energy, intellectual vibe.', plan: 'alpha',
+  { id: 'library_approach', title: 'Library / Bookstore Approach', difficulty: 'MEDIUM', desc: 'Low energy, intellectual vibe.', plan: 'alpha', category: 'dating',
     prompt: 'You are a woman browsing books. A guy approaches. Be interested but keep your voice down. Gauge his intellectual connection. Feedback after 6 exchanges.' },
-  { id: 'number_close', title: 'The Number Close', difficulty: 'MEDIUM', desc: 'Transition from small talk to getting the number.', plan: 'alpha',
+  { id: 'number_close', title: 'The Number Close', difficulty: 'MEDIUM', desc: 'Transition from small talk to getting the number.', plan: 'alpha', category: 'dating',
     prompt: 'You have been talking to a guy for 5 minutes. It went well. He is now trying to get your number. Put up a slight objection to test his frame. Feedback after 4 exchanges.' },
-  { id: 'texting_game', title: 'Texting Game', difficulty: 'EASY', desc: 'Move from text to date.', plan: 'sigma',
+  { id: 'texting_game', title: 'Texting Game', difficulty: 'EASY', desc: 'Move from text to date.', plan: 'sigma', category: 'dating',
     prompt: 'You are a girl who met this guy once. He is texting you. You are slightly interested but testing. After 6 texts give feedback on whether he could have gotten a date.' },
-  { id: 'salary_negotiation', title: 'Salary Negotiation', difficulty: 'MEDIUM', desc: 'Get what you are worth.', plan: 'grind',
+  { id: 'salary_negotiation', title: 'Salary Negotiation', difficulty: 'MEDIUM', desc: 'Get what you are worth.', plan: 'grind', category: 'professional',
     prompt: 'You are a hiring manager. The candidate is negotiating salary. Be firm but fair. After 6 exchanges give feedback.' },
-  { id: 'conflict_frame', title: 'Hold Your Frame', difficulty: 'MEDIUM', desc: 'Disagree without backing down.', plan: 'alpha',
+  { id: 'conflict_frame', title: 'Hold Your Frame', difficulty: 'MEDIUM', desc: 'Disagree without backing down.', plan: 'alpha', category: 'social',
     prompt: 'You are a peer who disagrees strongly. Push back firmly. After 6 exchanges give feedback on how well he maintained his frame.' },
-  { id: 'group_social', title: 'Group Social', difficulty: 'HARD', desc: 'Own the room.', plan: 'alpha',
+  { id: 'group_social', title: 'Group Social', difficulty: 'HARD', desc: 'Own the room.', plan: 'alpha', category: 'social',
     prompt: 'You are part of a social group. The user is trying to integrate. React realistically. After 8 exchanges give score and feedback.' },
-  // New scenarios
-  { id: 'friend_zone_escape', title: 'Friend Zone Escape', difficulty: 'HARD', desc: 'Shift from friend to romantic interest.', plan: 'grind',
+  { id: 'friend_zone_escape', title: 'Friend Zone Escape', difficulty: 'HARD', desc: 'Shift from friend to romantic interest.', plan: 'grind', category: 'dating',
     prompt: 'You are a girl who sees this guy as a close friend. He is trying to shift the dynamic towards romantic interest. React naturally — be slightly confused but open. After 6 exchanges give feedback on how well he escalated.' },
-  { id: 'mentor_connection', title: 'Mentor Connection', difficulty: 'MEDIUM', desc: 'Impress a successful mentor at an event.', plan: 'trial',
+  { id: 'mentor_connection', title: 'Mentor Connection', difficulty: 'MEDIUM', desc: 'Impress a successful mentor at an event.', plan: 'trial', category: 'professional',
     prompt: 'You are a successful entrepreneur at a networking event. A young man approaches you for mentorship. Be selective — only invest time in someone with drive and vision. After 6 exchanges give feedback on their approach.' },
-  { id: 'group_amog', title: 'Group Dominance (AMOG)', difficulty: 'HARD', desc: 'Handle a competing alpha in the group.', plan: 'sigma',
+  { id: 'group_amog', title: 'Group Dominance (AMOG)', difficulty: 'HARD', desc: 'Handle a competing alpha in the group.', plan: 'sigma', category: 'social',
     prompt: 'You are a dominant guy in a social group. Another guy is trying to establish presence. Test him subtly — interrupt, challenge, redirect attention. After 6 exchanges give score on how well he handled social pressure.' },
-  { id: 'ex_conversation', title: 'Post-Breakup Frame', difficulty: 'HARD', desc: 'Handle an ex reaching out without losing frame.', plan: 'alpha',
+  { id: 'ex_conversation', title: 'Post-Breakup Frame', difficulty: 'HARD', desc: 'Handle an ex reaching out without losing frame.', plan: 'alpha', category: 'dating',
     prompt: 'You are an ex-girlfriend reaching out after 3 months of no contact. You miss the connection but testing if he has changed. React to his emotional control. After 6 exchanges give feedback.' },
-  { id: 'interview_alpha', title: 'Leadership Interview', difficulty: 'MEDIUM', desc: 'Show authority in a job interview.', plan: 'grind',
+  { id: 'interview_alpha', title: 'Leadership Interview', difficulty: 'MEDIUM', desc: 'Show authority in a job interview.', plan: 'grind', category: 'professional',
     prompt: 'You are a panel interviewer for a leadership position. Ask challenging behavioral questions. Evaluate the candidate on confidence, clarity, and leadership presence. After 6 exchanges give score and feedback.' },
+  // ─── NEW EXPANDED SCENARIOS ─────────────────────────────────────────────────
+  { id: 'networking_event', title: 'Networking Event Power Move', difficulty: 'MEDIUM', desc: 'Work a room and make 3 valuable connections.', plan: 'grind', category: 'professional',
+    prompt: 'You are an investor at a networking event. Someone young approaches you. Be polite but busy. Only engage deeply if their pitch is compelling. After 6 exchanges give detailed feedback on their networking skills.' },
+  { id: 'confrontation', title: 'Verbal Confrontation', difficulty: 'HARD', desc: 'De-escalate a heated argument without backing down.', plan: 'alpha', category: 'social',
+    prompt: 'You are angry and confrontational. Someone bumped into you and you blame them. You are testing their emotional control. After 6 exchanges give feedback on emotional regulation and assertiveness.' },
+  { id: 'social_proof', title: 'The Social Proof Approach', difficulty: 'MEDIUM', desc: 'Leverage social proof to attract attention.', plan: 'alpha', category: 'dating',
+    prompt: 'You are at a social gathering. A guy who seems popular approaches you. You notice others seem to know him. React based on how well he leverages his social status without bragging. After 6 exchanges give feedback.' },
+  { id: 'boundary_setting', title: 'Setting Boundaries', difficulty: 'MEDIUM', desc: 'Say no without losing the relationship.', plan: 'trial', category: 'social',
+    prompt: 'You are a close friend asking for a big favor. When declined, push back emotionally. Test if the user can maintain their boundary while keeping the friendship intact. After 6 exchanges give feedback.' },
+  { id: 'public_speaking', title: 'Public Speaking Challenge', difficulty: 'HARD', desc: 'Handle tough audience questions after a speech.', plan: 'sigma', category: 'professional',
+    prompt: 'You are a skeptical audience member who just heard a presentation. Ask challenging, even slightly hostile questions. Evaluate the speaker on composure, clarity, and assertiveness. After 6 exchanges give score and feedback.' },
+  { id: 'parent_conversation', title: 'Serious Talk with Parents', difficulty: 'MEDIUM', desc: 'Share your unconventional life plan with family.', plan: 'grind', category: 'social',
+    prompt: 'You are a concerned parent. Your son is telling you he wants to drop out and pursue entrepreneurship. Be worried but not dismissive. After 6 exchanges give feedback on how he communicated conviction and respect.' },
+  { id: 'dating_app_openers', title: 'Dating App Texting', difficulty: 'EASY', desc: 'Stand out from 100 other matches.', plan: 'trial', category: 'dating',
+    prompt: 'You are a woman on a dating app. You match with lots of guys. This one just messaged you. Be realistic — most openers bore you. Only engage if his message is creative and non-needy. After 6 messages give detailed feedback.' },
+];
+
+// ─── Convo Lab Guidelines ─────────────────────────────────────────────────────
+const CONVO_GUIDELINES = [
+  {
+    title: 'Frame Control',
+    icon: '🎯',
+    points: [
+      'Never enter someone else\'s frame — always lead the conversation',
+      'If she tests you, pass by staying calm and amused',
+      'Frame = reality. Whoever\'s frame is stronger dictates the dynamic',
+      'Don\'t explain yourself excessively — confident people state, not justify',
+    ]
+  },
+  {
+    title: 'Listening & Calibration',
+    icon: '👂',
+    points: [
+      'Listen 70%, talk 30% — especially in early interactions',
+      'Mirror body language subtly (leaning, pace, energy)',
+      'Read the room: high energy environment = high energy approach',
+      'Silence is power — don\'t fill every gap',
+    ]
+  },
+  {
+    title: 'Openers That Work',
+    icon: '💬',
+    points: [
+      'Situational openers > generic pickup lines',
+      'State an observation, then ask a follow-up',
+      'Never start with "Hey" or "What\'s up" on dating apps',
+      'Be specific: "I noticed your book..." beats "You\'re cute"',
+    ]
+  },
+  {
+    title: 'Escalation Ladder',
+    icon: '📈',
+    points: [
+      'Verbal → Light touch → More presence → Ask for number/date',
+      'Never skip steps — calibrate based on her comfort',
+      'If she pulls back, hold your ground but don\'t push',
+      'The close should feel natural, not forced',
+    ]
+  },
+  {
+    title: 'Professional Communication',
+    icon: '💼',
+    points: [
+      'Speak with authority: fewer words, more impact',
+      'In negotiations, the first to speak after a number loses',
+      'Always know your walk-away point before entering any negotiation',
+      'Use silence strategically — it creates pressure on the other side',
+    ]
+  },
+];
+
+const RECOMMENDED_RESOURCES = [
+  { title: 'Models — Mark Manson', type: 'Book', desc: 'Honest self-improvement approach to dating and attraction.' },
+  { title: 'The Rational Male — Rollo Tomassi', type: 'Book', desc: 'Understanding intersexual dynamics and male sexual strategy.' },
+  { title: 'How to Win Friends — Dale Carnegie', type: 'Book', desc: 'Timeless interpersonal communication fundamentals.' },
+  { title: '48 Laws of Power — Robert Greene', type: 'Book', desc: 'Strategic social dynamics and power plays.' },
+  { title: 'Never Split the Difference — Chris Voss', type: 'Book', desc: 'FBI negotiation tactics applied to everyday life.' },
+  { title: 'Charisma on Command', type: 'YouTube', desc: 'Practical breakdowns of charisma, body language, and social skills.' },
+  { title: 'The Art of Manliness', type: 'Podcast', desc: 'Conversations on developing masculine virtues and skills.' },
+  { title: 'Jocko Willink — Discipline Equals Freedom', type: 'Book', desc: 'Navy SEAL mindset applied to discipline and leadership.' },
 ];
 
 export default function FocusScreen() {
@@ -93,14 +192,23 @@ export default function FocusScreen() {
   const userPlan = profile?.plan || 'trial';
 
   useEffect(() => {
-    if (params.tab) {
+    // If we have a specific tab in params, switch to it
+    if (params.tab && params.tab !== activeTab) {
       setActiveTab(params.tab as string);
     }
-    if (params.scenario) {
+    // If we have a scenario, it forces Convo Lab
+    else if (params.scenario) {
       setActiveTab('Convo Lab');
-      // The ConvoLabView will handle auto-selection if we pass the param down
     }
-  }, [params]);
+    // We don't want to force "Convo Lab" if the user is just clicking the tab bar normally
+  }, [params.tab, params.scenario]);
+
+  const handleTabChange = (tab: string) => {
+    // Clear any temporary navigation params when switching tabs manually
+    setActiveTab(tab);
+    // Note: We don't explicitly clear params here as they are managed by the router,
+    // but the useEffect dependency on specific params ensures we don't "stick"
+  };
 
   const canAccessPlan = (required: string) => {
     const order: Record<string, number> = { trial: 0, free_trial: 0, grind: 1, alpha: 2, sigma: 3 };
@@ -450,10 +558,57 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
     );
   }
 
+  const [showGuide, setShowGuide] = useState<string | null>(null);
+  const [scenarioFilter, setScenarioFilter] = useState<string>('all');
+
+  const filteredScenarios = scenarioFilter === 'all' ? SCENARIOS : SCENARIOS.filter(s => s.category === scenarioFilter);
+
   return (
-    <ScrollView contentContainerStyle={styles.tabContent}>
-      <Text style={[styles.sectionTitle, { color: theme.textMuted, marginBottom: SPACING.md }]}>SELECT SCENARIO</Text>
-      {SCENARIOS.map(s => {
+    <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      {/* ── Conversation Guidelines ── */}
+      <Text style={[styles.sectionTitle, { color: theme.gold, marginBottom: SPACING.sm }]}>CONVERSATION GUIDELINES</Text>
+      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: SPACING.md, fontFamily: FONTS.regular }}>Master these principles before entering any scenario.</Text>
+      {CONVO_GUIDELINES.map((g, i) => (
+        <TouchableOpacity key={i} onPress={() => setShowGuide(showGuide === g.title ? null : g.title)} activeOpacity={0.8}>
+          <View style={[styles.guideCard, { backgroundColor: theme.bgSurface, borderColor: showGuide === g.title ? theme.gold + '44' : theme.border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Text style={{ fontSize: 18 }}>{g.icon}</Text>
+                <Text style={{ color: theme.textPrimary, fontFamily: FONTS.semiBold, fontSize: 14 }}>{g.title}</Text>
+              </View>
+              <Feather name={showGuide === g.title ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} />
+            </View>
+            {showGuide === g.title && (
+              <View style={{ marginTop: 12, gap: 6 }}>
+                {g.points.map((p, j) => (
+                  <View key={j} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.gold, marginTop: 6 }} />
+                    <Text style={{ color: theme.textSecondary, fontSize: 13, flex: 1, lineHeight: 20, fontFamily: FONTS.regular }}>{p}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      ))}
+
+      {/* ── Scenario Filter ── */}
+      <Text style={[styles.sectionTitle, { color: theme.textMuted, marginTop: SPACING.lg, marginBottom: SPACING.sm }]}>SELECT SCENARIO</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.md, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {['all', 'dating', 'social', 'professional'].map(cat => (
+            <TouchableOpacity
+              key={cat}
+              onPress={() => setScenarioFilter(cat)}
+              style={[styles.filterPill, { backgroundColor: scenarioFilter === cat ? theme.gold + '22' : theme.bgElevated }]}
+            >
+              <Text style={{ color: scenarioFilter === cat ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold, fontSize: 12, textTransform: 'uppercase' }}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+
+      {filteredScenarios.map(s => {
         const locked = !canAccess(s.plan);
         return (
           <TouchableOpacity
@@ -466,9 +621,10 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
                 setMessages([]);
               }
             }}
+            activeOpacity={0.8}
           >
             <Card style={[styles.scenarioCard, { opacity: locked ? 0.6 : 1, borderColor: locked ? theme.border : theme.gold + '33' }] as any}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={[styles.scenTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{s.title}</Text>
                   <Badge label={s.difficulty} />
@@ -480,6 +636,21 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
           </TouchableOpacity>
         );
       })}
+
+      {/* ── Recommended Resources ── */}
+      <Text style={[styles.sectionTitle, { color: theme.gold, marginTop: SPACING.xl, marginBottom: SPACING.sm }]}>RECOMMENDED RESOURCES</Text>
+      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: SPACING.md, fontFamily: FONTS.regular }}>Level up your social intelligence with these handpicked resources.</Text>
+      {RECOMMENDED_RESOURCES.map((r, i) => (
+        <View key={i} style={[styles.resourceCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+          <View style={[styles.resourceType, { backgroundColor: theme.bgElevated }]}>
+            <Text style={{ color: theme.gold, fontFamily: FONTS.semiBold, fontSize: 10 }}>{r.type.toUpperCase()}</Text>
+          </View>
+          <Text style={{ color: theme.textPrimary, fontFamily: FONTS.semiBold, fontSize: 14 }}>{r.title}</Text>
+          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4, fontFamily: FONTS.regular }}>{r.desc}</Text>
+        </View>
+      ))}
+
+      <View style={{ height: 80 }} />
     </ScrollView>
   );
 }
@@ -522,6 +693,10 @@ const styles = StyleSheet.create({
   scenarioCard: { padding: SPACING.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   scenTitle: { fontSize: 15 },
   scenDesc: { fontSize: 12, marginTop: 4, maxWidth: '90%' },
+  guideCard: { padding: SPACING.md, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
+  filterPill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 },
+  resourceCard: { padding: SPACING.md, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
+  resourceType: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginBottom: 6 },
 
   labContainer: { flex: 1 },
   labHeader: { padding: SPACING.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderBottomWidth: 1 },

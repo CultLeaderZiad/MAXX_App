@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useTheme } from '../context/ThemeContext';
+import React from "react";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useTheme } from "../context/ThemeContext";
 
 export const LoadingSpinner: React.FC<{ testID?: string }> = ({ testID }) => {
   const { theme } = useTheme();
@@ -12,5 +12,5 @@ export const LoadingSpinner: React.FC<{ testID?: string }> = ({ testID }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
 });

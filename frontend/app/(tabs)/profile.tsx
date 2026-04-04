@@ -1,19 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Animated, Easing } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import { decode } from 'base64-arraybuffer';
-import Svg, { Circle, Defs, Stop, LinearGradient as SvgGradient } from 'react-native-svg';
-import { useTheme } from '../../src/context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
-import { BlurView } from 'expo-blur';
-import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
-import { ProgressBar } from '../../src/components/ProgressBar';
-import { supabase } from '../../lib/supabase';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Animated,
+  Easing,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import { decode } from "base64-arraybuffer";
+import Svg, {
+  Circle,
+  Defs,
+  Stop,
+  LinearGradient as SvgGradient,
+} from "react-native-svg";
+import { useTheme } from "../../src/context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
+
+import { FONTS, SPACING, RADIUS } from "../../src/constants/theme";
+import { ProgressBar } from "../../src/components/ProgressBar";
+import { supabase } from "../../lib/supabase";
 
 const AnimatedSvg = Animated.createAnimatedComponent(Svg);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -23,13 +41,18 @@ export default function ProfileScreen() {
   const { user, profile, fetchProfile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
+
   const [streaks, setStreaks] = useState<any[]>([]);
   const [workoutCount, setWorkoutCount] = useState(0);
   const [badges, setBadges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  const [displayStats, setDisplayStats] = useState({ streak: 0, workouts: 0, days: 0, xp: 0 });
+
+  const [displayStats, setDisplayStats] = useState({
+    streak: 0,
+    workouts: 0,
+    days: 0,
+    xp: 0,
+  });
   const powerLevelAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -41,24 +64,34 @@ export default function ProfileScreen() {
     setLoading(true);
     try {
       const [sRes, wRes, bRes] = await Promise.all([
-        supabase.from('streaks').select('*').eq('user_id', user.id),
-        supabase.from('workout_completions').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase.from('badges').select('*').eq('user_id', user.id)
+        supabase.from("streaks").select("*").eq("user_id", user.id),
+        supabase
+          .from("workout_completions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id),
+        supabase.from("badges").select("*").eq("user_id", user.id),
       ]);
 
       setStreaks(sRes.data || []);
       setWorkoutCount(wRes.count || 0);
       setBadges(bRes.data || []);
-      
-      const streakVal = sRes.data?.find((s: any) => s.streak_type === 'daily')?.current_streak || 0;
+
+      const streakVal =
+        sRes.data?.find((s: any) => s.streak_type === "daily")
+          ?.current_streak || 0;
       const daysActive = profile?.created_at
-        ? Math.max(1, Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000))
+        ? Math.max(
+            1,
+            Math.floor(
+              (Date.now() - new Date(profile.created_at).getTime()) / 86400000,
+            ),
+          )
         : 1;
       const targetStats = {
         streak: streakVal,
         workouts: wRes.count || 0,
         days: daysActive,
-        xp: profile?.xp || 0
+        xp: profile?.xp || 0,
       };
 
       animateNumbers(targetStats);
@@ -67,9 +100,8 @@ export default function ProfileScreen() {
         toValue: (profile?.power_level || 0) / 10,
         duration: 1200,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: false
+        useNativeDriver: false,
       }).start();
-
     } catch (e) {
       console.error(e);
     } finally {
@@ -115,27 +147,35 @@ export default function ProfileScreen() {
       try {
         // Use a unique filename with timestamp to break image caching
         const filePath = `${user.id}/avatar_${Date.now()}.jpg`;
-        
+
         // Base64 string directly from ImagePicker
         const base64 = file.base64;
 
         const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(filePath, decode(base64 as string), { 
-             upsert: true,
-             contentType: 'image/jpeg'
+          .from("avatars")
+          .upload(filePath, decode(base64 as string), {
+            upsert: true,
+            contentType: "image/jpeg",
           });
 
         if (!uploadError) {
-          const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
-          await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("avatars").getPublicUrl(filePath);
+          await supabase
+            .from("profiles")
+            .update({ avatar_url: publicUrl })
+            .eq("id", user.id);
           await fetchProfile();
         } else {
-          Alert.alert('Upload Error', uploadError.message);
+          Alert.alert("Upload Error", uploadError.message);
         }
       } catch (e: any) {
         console.error(e);
-        Alert.alert('Upload Failed', e.message || 'There was an issue uploading your photo.');
+        Alert.alert(
+          "Upload Failed",
+          e.message || "There was an issue uploading your photo.",
+        );
       } finally {
         setLoading(false);
       }
@@ -143,178 +183,414 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="profile-screen">
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.bgPrimary }]}
+      testID="profile-screen"
+    >
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Profile</Text>
-        <TouchableOpacity style={styles.gearBtn} onPress={() => router.push('/settings')} testID="profile-settings-btn">
+        <Text
+          style={[
+            styles.title,
+            { color: theme.textPrimary, fontFamily: FONTS.cinzelBold },
+          ]}
+        >
+          Profile
+        </Text>
+        <TouchableOpacity
+          style={styles.gearBtn}
+          onPress={() => router.push("/settings")}
+          testID="profile-settings-btn"
+        >
           <Feather name="settings" size={24} color={theme.textMuted} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Avatar Section with Circular Power Progress */}
         <View style={styles.avatarSection}>
           <View style={styles.ringContainer}>
             <Svg height="140" width="140" viewBox="0 0 100 100">
-               <Circle
-                 cx="50"
-                 cy="50"
-                 r="45"
-                 stroke={theme.border}
-                 strokeWidth="3"
-                 fill="none"
-               />
-               <AnimatedCircle
-                 cx="50"
-                 cy="50"
-                 r="45"
-                 stroke={theme.gold}
-                 strokeWidth="4"
-                 strokeDasharray="282.7"
-                 strokeDashoffset={powerLevelAnim.interpolate({
-                   inputRange: [0, 100],
-                   outputRange: [282.7, 0]
-                 })}
-                 strokeLinecap="round"
-                 fill="none"
-               />
+              <Circle
+                cx="50"
+                cy="50"
+                r="45"
+                stroke={theme.border}
+                strokeWidth="3"
+                fill="none"
+              />
+              <AnimatedCircle
+                cx="50"
+                cy="50"
+                r="45"
+                stroke={theme.gold}
+                strokeWidth="4"
+                strokeDasharray="282.7"
+                strokeDashoffset={powerLevelAnim.interpolate({
+                  inputRange: [0, 100],
+                  outputRange: [282.7, 0],
+                })}
+                strokeLinecap="round"
+                fill="none"
+              />
             </Svg>
-            <TouchableOpacity onPress={pickImage} activeOpacity={0.8} style={styles.avatarWrapper}>
+            <TouchableOpacity
+              onPress={pickImage}
+              activeOpacity={0.8}
+              style={styles.avatarWrapper}
+            >
               {profile?.avatar_url ? (
-                <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
+                <Image
+                  source={{ uri: profile.avatar_url }}
+                  style={styles.avatarImg}
+                />
               ) : (
                 <LinearGradient
-                  colors={[theme.gold, '#8A6420']}
+                  colors={[theme.gold, "#8A6420"]}
                   style={styles.avatarCircle}
                 >
-                  <Text style={[styles.initials, { color: '#FFF', fontFamily: FONTS.cinzelBold }]}>
-                    {profile?.full_name?.[0]?.toUpperCase() || 'U'}
+                  <Text
+                    style={[
+                      styles.initials,
+                      { color: "#FFF", fontFamily: FONTS.cinzelBold },
+                    ]}
+                  >
+                    {profile?.full_name?.[0]?.toUpperCase() || "U"}
                   </Text>
                 </LinearGradient>
               )}
             </TouchableOpacity>
           </View>
-          
-          <Text style={[styles.userName, { color: theme.textPrimary, fontFamily: FONTS.semiBold, marginTop: 12 }]}>
-            {profile?.full_name || 'Alchemist'}
+
+          <Text
+            style={[
+              styles.userName,
+              {
+                color: theme.textPrimary,
+                fontFamily: FONTS.semiBold,
+                marginTop: 12,
+              },
+            ]}
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {profile?.full_name || "Alchemist"}
           </Text>
-          <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: -2 }}>@{profile?.username || 'brother'}</Text>
-          
-          <View style={[styles.titlePill, { backgroundColor: theme.gold + '22', marginTop: 16 }]}>
-             <Feather name="shield" size={14} color={theme.gold} />
-             <Text style={[styles.titleText, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>
-                {profile?.rank ? profile.rank.toUpperCase() : 'BEGINNER'}
-             </Text>
+          <Text
+            style={{
+              color: theme.textMuted,
+              fontSize: 14,
+              marginTop: 2,
+              fontFamily: FONTS.regular,
+              maxWidth: '90%',
+              textAlign: 'center',
+            }}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            @{profile?.username || "brother"}
+          </Text>
+
+          <View
+            style={[
+              styles.titlePill,
+              { backgroundColor: theme.gold + "22", marginTop: 16 },
+            ]}
+          >
+            <Feather name="shield" size={14} color={theme.gold} />
+            <Text
+              style={[
+                styles.titleText,
+                { color: theme.gold, fontFamily: FONTS.cinzelBold },
+              ]}
+            >
+              {profile?.rank ? profile.rank.toUpperCase() : "BEGINNER"}
+            </Text>
           </View>
         </View>
 
         {/* Attribute Breakdown */}
         <View style={styles.attributeContainer}>
-           <View style={styles.attrItem}>
-              <Text style={[styles.attrLabel, { color: theme.textMuted }]}>WARRIOR</Text>
-              <Text style={[styles.attrVal, { color: theme.textPrimary }]}>{Math.min(99, 10 + (profile?.workouts_completed || 0))}</Text>
-           </View>
-           <View style={[styles.attrDivider, { backgroundColor: theme.border }]} />
-           <View style={styles.attrItem}>
-              <Text style={[styles.attrLabel, { color: theme.textMuted }]}>SOCIAL</Text>
-              <Text style={[styles.attrVal, { color: theme.textPrimary }]}>{Math.min(99, 20 + Math.floor((profile?.xp || 0) / 50))}</Text>
-           </View>
-           <View style={[styles.attrDivider, { backgroundColor: theme.border }]} />
-           <View style={styles.attrItem}>
-              <Text style={[styles.attrLabel, { color: theme.textMuted }]}>MENTAL</Text>
-              <Text style={[styles.attrVal, { color: theme.textPrimary }]}>{Math.min(99, 5 + (displayStats.streak * 2))}</Text>
-           </View>
+          <View style={styles.attrItem}>
+            <Text style={[styles.attrLabel, { color: theme.textMuted }]}>
+              WARRIOR
+            </Text>
+            <Text style={[styles.attrVal, { color: theme.textPrimary }]}>
+              {Math.min(99, 10 + (profile?.workouts_completed || 0))}
+            </Text>
+          </View>
+          <View
+            style={[styles.attrDivider, { backgroundColor: theme.border }]}
+          />
+          <View style={styles.attrItem}>
+            <Text style={[styles.attrLabel, { color: theme.textMuted }]}>
+              SOCIAL
+            </Text>
+            <Text style={[styles.attrVal, { color: theme.textPrimary }]}>
+              {Math.min(99, 20 + Math.floor((profile?.xp || 0) / 50))}
+            </Text>
+          </View>
+          <View
+            style={[styles.attrDivider, { backgroundColor: theme.border }]}
+          />
+          <View style={styles.attrItem}>
+            <Text style={[styles.attrLabel, { color: theme.textMuted }]}>
+              MENTAL
+            </Text>
+            <Text style={[styles.attrVal, { color: theme.textPrimary }]}>
+              {Math.min(99, 5 + displayStats.streak * 2)}
+            </Text>
+          </View>
         </View>
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
           {[
-            { label: 'STREAK', value: displayStats.streak },
-            { label: 'WORKOUTS', value: displayStats.workouts },
-            { label: 'DAYS', value: displayStats.days },
-            { label: 'XP', value: displayStats.xp },
-          ].map(s => (
-            <View key={s.label} style={[styles.statCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-               <Text style={[styles.statValue, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{s.value}</Text>
-               <Text style={[styles.statLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>{s.label}</Text>
+            { label: "STREAK", value: displayStats.streak },
+            { label: "WORKOUTS", value: displayStats.workouts },
+            { label: "DAYS", value: displayStats.days },
+            { label: "XP", value: displayStats.xp },
+          ].map((s) => (
+            <View
+              key={s.label}
+              style={[
+                styles.statCard,
+                { backgroundColor: theme.bgSurface, borderColor: theme.border },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: theme.gold, fontFamily: FONTS.cinzelBold },
+                ]}
+              >
+                {s.value}
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  { color: theme.textMuted, fontFamily: FONTS.medium },
+                ]}
+              >
+                {s.label}
+              </Text>
             </View>
           ))}
         </View>
 
         {/* Rank XP Level */}
-        <View style={[styles.powerCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.powerCard,
+            { backgroundColor: theme.bgSurface, borderColor: theme.border },
+          ]}
+        >
           <View style={styles.powerInfo}>
-            <Text style={[styles.powerLabel, { color: theme.textMuted, fontFamily: FONTS.medium }]}>RANK PROGRESS</Text>
+            <Text
+              style={[
+                styles.powerLabel,
+                { color: theme.textMuted, fontFamily: FONTS.medium },
+              ]}
+            >
+              RANK PROGRESS
+            </Text>
             <View style={styles.powerValRow}>
-               <Feather name="star" size={16} color={theme.gold} />
-               <Text style={[styles.powerVal, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{profile?.rank || 'Beginner'}</Text>
+              <Feather name="star" size={16} color={theme.gold} />
+              <Text
+                style={[
+                  styles.powerVal,
+                  { color: theme.gold, fontFamily: FONTS.cinzelBold },
+                ]}
+              >
+                {profile?.rank || "Beginner"}
+              </Text>
             </View>
           </View>
-          
+
           {(() => {
-             const rank = profile?.rank || 'Beginner';
-             const curXp = displayStats.xp;
-             let cMin = 0, nReq = 1000, nRank = 'Intermediate';
-             if (rank === 'Intermediate') { cMin = 1000; nReq = 3000; nRank = 'Pro'; }
-             else if (rank === 'Pro') { cMin = 3000; nReq = 6000; nRank = 'World Class'; }
-             else if (rank === 'WorldClass' || rank === 'World Class') { cMin = 6000; nReq = 10000; nRank = 'MAX'; }
-             
-             const progressPct = Math.max(0, Math.min(100, ((curXp - cMin) / (nReq - cMin)) * 100));
-             return (
-               <>
-                 <View style={{ height: 12, backgroundColor: theme.border, borderRadius: 6, overflow: 'hidden' }}>
-                    <View style={{ height: '100%', backgroundColor: theme.gold, width: `${progressPct}%` }} />
-                 </View>
-                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.md }}>
-                    <Text style={{ color: theme.textMuted, fontFamily: FONTS.medium, fontSize: 11 }}>
-                      {curXp} XP / {nReq} XP
-                    </Text>
-                    <Text style={{ color: theme.textMuted, fontFamily: FONTS.medium, fontSize: 11, letterSpacing: 1 }}>
-                      NEXT: {nRank.toUpperCase()}
-                    </Text>
-                 </View>
-               </>
-             );
+            const rank = profile?.rank || "Beginner";
+            const curXp = displayStats.xp;
+            let cMin = 0,
+              nReq = 1000,
+              nRank = "Intermediate";
+            if (rank === "Intermediate") {
+              cMin = 1000;
+              nReq = 3000;
+              nRank = "Pro";
+            } else if (rank === "Pro") {
+              cMin = 3000;
+              nReq = 6000;
+              nRank = "World Class";
+            } else if (rank === "WorldClass" || rank === "World Class") {
+              cMin = 6000;
+              nReq = 10000;
+              nRank = "MAX";
+            }
+
+            const progressPct = Math.max(
+              0,
+              Math.min(100, ((curXp - cMin) / (nReq - cMin)) * 100),
+            );
+            return (
+              <>
+                <View
+                  style={{
+                    height: 12,
+                    backgroundColor: theme.border,
+                    borderRadius: 6,
+                    overflow: "hidden",
+                  }}
+                >
+                  <View
+                    style={{
+                      height: "100%",
+                      backgroundColor: theme.gold,
+                      width: `${progressPct}%`,
+                    }}
+                  />
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginTop: SPACING.md,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.textMuted,
+                      fontFamily: FONTS.medium,
+                      fontSize: 11,
+                    }}
+                  >
+                    {curXp} XP / {nReq} XP
+                  </Text>
+                  <Text
+                    style={{
+                      color: theme.textMuted,
+                      fontFamily: FONTS.medium,
+                      fontSize: 11,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    NEXT: {nRank.toUpperCase()}
+                  </Text>
+                </View>
+              </>
+            );
           })()}
         </View>
-        
+
         {/* Plan Card */}
-        <View style={[styles.planCard, { backgroundColor: theme.bgSurface, borderColor: theme.gold }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View>
-                    <Text style={[styles.planLabel, { color: theme.textMuted }]}>CURRENT PLAN</Text>
-                    <Text style={[styles.planName, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>
-                        {profile?.plan?.replace('_', ' ').toUpperCase() || 'FREE PLAN'}
-                    </Text>
-                </View>
-                <TouchableOpacity onPress={() => router.push('/plans')} style={[styles.upgradeBtn, { backgroundColor: theme.gold }]}>
-                    <Text style={{ color: '#000', fontFamily: FONTS.bold, fontSize: 12 }}>UPGRADE</Text>
-                </TouchableOpacity>
+        <View
+          style={[
+            styles.planCard,
+            { backgroundColor: theme.bgSurface, borderColor: theme.gold },
+          ]}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <View>
+              <Text style={[styles.planLabel, { color: theme.textMuted }]}>
+                CURRENT PLAN
+              </Text>
+              <Text
+                style={[
+                  styles.planName,
+                  { color: theme.textPrimary, fontFamily: FONTS.cinzelBold },
+                ]}
+              >
+                {profile?.plan?.replace("_", " ").toUpperCase() || "FREE PLAN"}
+              </Text>
             </View>
+            <TouchableOpacity
+              onPress={() => router.push("/plans")}
+              style={[styles.upgradeBtn, { backgroundColor: theme.gold }]}
+            >
+              <Text
+                style={{ color: "#000", fontFamily: FONTS.bold, fontSize: 12 }}
+              >
+                UPGRADE
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Badges Section */}
         <View style={styles.badgesWrap}>
-           <Text style={[styles.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.semiBold }]}>BADGES {badges.length}</Text>
-           <View style={styles.badgeGrid}>
-              {badges.map(b => (
-                <View key={b.id} style={styles.badgeItem}>
-                   <View style={[styles.badgeIcon, { backgroundColor: theme.bgElevated, borderColor: theme.gold, borderWidth: 1 }]}>
-                      <Feather name="award" size={22} color={theme.gold} />
-                   </View>
-                   <Text style={[styles.badgeLabel, { color: theme.textSecondary, fontFamily: FONTS.regular }]}>{b.name || 'Achievement'}</Text>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.textMuted, fontFamily: FONTS.semiBold },
+            ]}
+          >
+            BADGES {badges.length}
+          </Text>
+          <View style={styles.badgeGrid}>
+            {badges.map((b) => (
+              <View key={b.id} style={styles.badgeItem}>
+                <View
+                  style={[
+                    styles.badgeIcon,
+                    {
+                      backgroundColor: theme.bgElevated,
+                      borderColor: theme.gold,
+                      borderWidth: 1,
+                    },
+                  ]}
+                >
+                  <Feather name="award" size={22} color={theme.gold} />
                 </View>
-              ))}
-              {/* Locked placeholders */}
-              {[1, 2, 3, 4].map(i => (
-                <TouchableOpacity key={'locked-'+i} onPress={() => Alert.alert('Locked', 'Continue your journey to earn this badge.')} style={styles.badgeItem}>
-                  <View style={[styles.badgeIcon, { backgroundColor: theme.bgElevated, opacity: 0.3 }]}>
-                      <Feather name="lock" size={22} color={theme.textMuted} />
-                   </View>
-                   <Text style={[styles.badgeLabel, { color: theme.textMuted, fontFamily: FONTS.regular }]}>Locked</Text>
-                </TouchableOpacity>
-              ))}
-           </View>
+                <Text
+                  style={[
+                    styles.badgeLabel,
+                    { color: theme.textSecondary, fontFamily: FONTS.regular },
+                  ]}
+                >
+                  {b.name || "Achievement"}
+                </Text>
+              </View>
+            ))}
+            {/* Locked placeholders */}
+            {[1, 2, 3, 4].map((i) => (
+              <TouchableOpacity
+                key={"locked-" + i}
+                onPress={() =>
+                  Alert.alert(
+                    "Locked",
+                    "Continue your journey to earn this badge.",
+                  )
+                }
+                style={styles.badgeItem}
+              >
+                <View
+                  style={[
+                    styles.badgeIcon,
+                    { backgroundColor: theme.bgElevated, opacity: 0.3 },
+                  ]}
+                >
+                  <Feather name="lock" size={22} color={theme.textMuted} />
+                </View>
+                <Text
+                  style={[
+                    styles.badgeLabel,
+                    { color: theme.textMuted, fontFamily: FONTS.regular },
+                  ]}
+                >
+                  Locked
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -323,47 +599,122 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingBottom: 10 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: 10,
+  },
   title: { fontSize: 24 },
   gearBtn: { padding: 8 },
   scroll: { paddingBottom: SPACING.xl },
-  avatarSection: { alignItems: 'center', marginTop: SPACING.md },
-  ringContainer: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center' },
-  avatarWrapper: { position: 'absolute', width: 100, height: 100, borderRadius: 50, overflow: 'hidden' },
-  avatarCircle: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  avatarImg: { width: '100%', height: '100%' },
+  avatarSection: { alignItems: "center", marginTop: SPACING.md },
+  ringContainer: {
+    width: 140,
+    height: 140,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarWrapper: {
+    position: "absolute",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    overflow: "hidden",
+  },
+  avatarCircle: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarImg: { width: "100%", height: "100%" },
   initials: { fontSize: 36 },
-  userName: { fontSize: 24 },
-  titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 16, borderRadius: 20 },
+  userName: { fontSize: 24, textAlign: 'center', maxWidth: '85%' },
+  titlePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
   titleText: { fontSize: 13, letterSpacing: 2 },
-  
-  attributeContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginTop: SPACING.xl, paddingHorizontal: SPACING.lg },
-  attrItem: { alignItems: 'center', flex: 1 },
+
+  attributeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    marginTop: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+  },
+  attrItem: { alignItems: "center", flex: 1 },
   attrLabel: { fontSize: 9, letterSpacing: 1.5, marginBottom: 4 },
   attrVal: { fontSize: 20, fontFamily: FONTS.cinzelBold },
   attrDivider: { width: 1, height: 30, opacity: 0.3 },
-  
-  statsRow: { flexDirection: 'row', gap: 8, paddingHorizontal: SPACING.lg, marginTop: SPACING.xl },
-  statCard: { flex: 1, height: 80, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+
+  statsRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: SPACING.lg,
+    marginTop: SPACING.xl,
+  },
+  statCard: {
+    flex: 1,
+    height: 80,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   statValue: { fontSize: 20 },
   statLabel: { fontSize: 9, letterSpacing: 1, marginTop: 4 },
-  
-  powerCard: { marginTop: SPACING.lg, marginHorizontal: SPACING.lg, padding: SPACING.lg, borderRadius: 20, borderWidth: 1 },
-  powerInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+
+  powerCard: {
+    marginTop: SPACING.lg,
+    marginHorizontal: SPACING.lg,
+    padding: SPACING.lg,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  powerInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: SPACING.md,
+  },
   powerLabel: { fontSize: 11, letterSpacing: 1.2 },
-  powerValRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  powerValRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   powerVal: { fontSize: 18 },
-  xpToNext: { fontSize: 11, textAlign: 'center', marginTop: SPACING.md, letterSpacing: 2 },
-  
-  planCard: { marginTop: SPACING.md, marginHorizontal: SPACING.lg, padding: SPACING.lg, borderRadius: 16, borderWidth: 1 },
+  xpToNext: {
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: SPACING.md,
+    letterSpacing: 2,
+  },
+
+  planCard: {
+    marginTop: SPACING.md,
+    marginHorizontal: SPACING.lg,
+    padding: SPACING.lg,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
   planLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 4 },
   planName: { fontSize: 18 },
   upgradeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  
+
   badgesWrap: { marginTop: SPACING.xl, paddingHorizontal: SPACING.lg },
   sectionTitle: { fontSize: 12, letterSpacing: 1.2, marginBottom: SPACING.lg },
-  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  badgeItem: { width: '25%', alignItems: 'center', marginBottom: SPACING.lg },
-  badgeIcon: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  badgeLabel: { fontSize: 10, marginTop: 8, textAlign: 'center' },
+  badgeGrid: { flexDirection: "row", flexWrap: "wrap" },
+  badgeItem: { width: "25%", alignItems: "center", marginBottom: SPACING.lg },
+  badgeIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeLabel: { fontSize: 10, marginTop: 8, textAlign: "center" },
 });
