@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   outlineBtn: {
     width: "100%",
     paddingVertical: 16,
-    borderRadius: RADIUS.round,
+    borderRadius: RADIUS.pill,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",

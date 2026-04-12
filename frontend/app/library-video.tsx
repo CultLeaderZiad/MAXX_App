@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   metaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   metaText: { fontSize: 14 },
   tagsContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: SPACING.xl },
-  tagBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.round },
+  tagBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.pill },
   tagText: { fontSize: 11, letterSpacing: 1 },
   divider: { height: 1, backgroundColor: "rgba(255,255,255,0.1)", marginBottom: SPACING.lg },
   sectionTitle: { fontSize: 14, letterSpacing: 2, marginBottom: SPACING.md },

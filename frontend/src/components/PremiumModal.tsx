@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, DeviceEventEmitter } f
 import { useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { FONTS, SPACING } from '../constants/theme';
-import { Feather } from '@expo-google-fonts/cinzel'; // Wait, it's @expo/vector-icons
+
 import { Feather as Icon } from '@expo/vector-icons';
 
 export function PremiumModal() {
