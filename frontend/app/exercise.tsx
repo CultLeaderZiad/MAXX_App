@@ -9,7 +9,10 @@ import {
   Animated,
   Easing,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Share,
+  Linking,
+  Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -40,7 +43,7 @@ interface ExerciseVideoEntry {
 const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   // ─── FACIAL VECTORS ──────────────────────────────────────────────────────────
   mewing: {
-    videoId: "eh9OqEd5MKk",
+    videoId: "zbZwLFBsOiM",
     title: "Genetic Jaw Alignment (Mewing)",
     guidelines: [
       "Suction entire tongue to palate",
@@ -51,7 +54,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
     commonMistakes: ["Tongue tip pressure only", "Clenching teeth"],
   },
   "tongue posture": {
-    videoId: "eh9OqEd5MKk",
+    videoId: "zbZwLFBsOiM",
     title: "Structural Palate Support",
     guidelines: ["Maintain suction hold throughout", "Flatten tongue against palate"],
     formCues: ["Seal the back of the throat"],
@@ -72,7 +75,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
     commonMistakes: ["Tilting head down", "Shoulder shrugging"],
   },
 
-  // ─── PHARMACEUTICAL/BODY VECTORS ──────────────────────────────────────────────
+  // ─── BODY VECTORS ──────────────────────────────────────────────────────────
   "push up": {
     videoId: "IODxDxX7oi4",
     title: "Tactical Push-Up Mechanics",
@@ -121,6 +124,49 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
     guidelines: ["Tuck pelvis", "Forearms parallel", "Neutral spine"],
     formCues: ["Brace for a punch", "Squeeze glutes"],
     commonMistakes: ["Head drop", "Arching back"],
+  },
+  // ─── CONFIRMED FIX MAP ────────────────────────────────────────────────────────
+  "face pull": {
+    videoId: "HSoHeSjovGc",
+    title: "Rear Delt & Rotator Cuff Protocol",
+    guidelines: ["Cable at face height", "Pull to ears with external rotation", "Squeeze shoulder blades"],
+    formCues: ["Elbows high", "Rope to face level"],
+    commonMistakes: ["Using body momentum", "Too heavy"],
+  },
+  "overhead press": {
+    videoId: "2yjwXTZQDDI",
+    title: "Overhead Press Force Production",
+    guidelines: ["Strict form — no leg drive", "Lock out at top", "Brace core throughout"],
+    formCues: ["Bar path vertical", "Head through at top"],
+    commonMistakes: ["Leaning back", "Flared elbows"],
+  },
+  ohp: {
+    videoId: "2yjwXTZQDDI",
+    title: "Overhead Press Force Production",
+    guidelines: ["Strict form — no leg drive", "Lock out at top", "Brace core throughout"],
+    formCues: ["Bar path vertical", "Head through at top"],
+    commonMistakes: ["Leaning back", "Flared elbows"],
+  },
+  "lateral raise": {
+    videoId: "3VcKaXpzqRo",
+    title: "Lateral Deltoid Isolation",
+    guidelines: ["Slight bend in elbows", "Raise to shoulder height", "Control the negative"],
+    formCues: ["Lead with pinky", "Slow eccentric"],
+    commonMistakes: ["Swinging weights", "Shrugging traps"],
+  },
+  "wall stand": {
+    videoId: "RqcOCBb4arc",
+    title: "Wall Handstand Progression",
+    guidelines: ["Face the wall", "Walk feet up slowly", "Lock arms overhead"],
+    formCues: ["Core tight", "Look at the wall"],
+    commonMistakes: ["Arching back", "Holding breath"],
+  },
+  "cold shower": {
+    videoId: "pq6WHJzOkno",
+    title: "Cold Exposure Protocol",
+    guidelines: ["Start with 30 seconds", "Focus on controlled breathing", "Gradually increase duration"],
+    formCues: ["Breathe through the discomfort", "Relax shoulders"],
+    commonMistakes: ["Hyperventilating", "Tensing entire body"],
   },
 };
 
@@ -323,6 +369,49 @@ export default function ExerciseScreen() {
               />
             </View>
 
+            {/* Caption bar + Share/Save buttons */}
+            <Text style={{ color: theme.textMuted, fontSize: 13, lineHeight: 20, marginTop: 16, fontFamily: FONTS.regular }} numberOfLines={3}>
+              {params.description || videoData.title}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={async () => {
+                  try {
+                    const ytUrl = `https://youtu.be/${videoData.videoId}`;
+                    await Share.share({ message: `${params.name} \u2014 ${videoData.title}\n${ytUrl}\n\nShared from MAXX App`, url: ytUrl });
+                  } catch (e) {}
+                }}
+                style={[styles.shareBtn, { borderColor: theme.gold }]}
+              >
+                <Feather name="share" size={14} color={theme.gold} />
+                <Text style={{ color: theme.gold, fontFamily: FONTS.bold, fontSize: 13 }}>Share Video</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={async () => {
+                  if (!user) return;
+                  try {
+                    await supabase.from('favorites').insert({
+                      user_id: user.id,
+                      item_type: 'exercise',
+                      item_id: params.id || videoData.videoId,
+                      item_title: params.name || videoData.title,
+                      item_image_url: `https://img.youtube.com/vi/${videoData.videoId}/hqdefault.jpg`,
+                      item_subtitle: 'Exercise Video',
+                    });
+                    Alert.alert('Saved', 'Added to your favorites.');
+                  } catch (e) {
+                    console.log(e);
+                  }
+                }}
+                style={[styles.saveBtn, { backgroundColor: theme.gold }]}
+              >
+                <Feather name="bookmark" size={14} color="#000" />
+                <Text style={{ color: '#000', fontFamily: FONTS.bold, fontSize: 13 }}>Add to Favorites</Text>
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.guideContainer}>
                 <Text style={[styles.guideHeader, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>TACTICAL PROTOCOL</Text>
                 {videoData.guidelines.map((g, i) => (
@@ -434,6 +523,8 @@ const styles = StyleSheet.create({
   bulletLabel: { fontSize: 14, lineHeight: 22 },
   proTipBox: { marginTop: 20, padding: 20, borderRadius: 18, borderLeftWidth: 4 },
   confirmBtn: { marginTop: 40, height: 60, borderRadius: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  shareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 2 },
+  saveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
   workoutSection: { width: "100%", alignItems: "center" },
   displayRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", paddingVertical: 30 },
   displayItem: { flex: 1, alignItems: "center" },

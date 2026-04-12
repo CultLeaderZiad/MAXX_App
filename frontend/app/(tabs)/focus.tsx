@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Modal, Alert, Animated, Easing, Share, KeyboardAvoidingView, Platform
+  ActivityIndicator, Modal, Alert, Animated, Easing, Share, KeyboardAvoidingView, Platform,
+  Image, Linking, Dimensions
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +17,8 @@ import { Card } from '../../src/components/Card';
 import { Badge } from '../../src/components/Badge';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const TABS = ['Wisdom', 'Confidence', 'Convo Lab'];
+const TABS = ['Wisdom', 'Confidence', 'Convo Lab', 'Library'];
+const { width: SCREEN_W } = Dimensions.get('window');
 
 // ─── Confidence Modules ───────────────────────────────────────────────────────
 const CONFIDENCE_MODULES = [
@@ -218,7 +220,7 @@ export default function FocusScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="focus-screen">
       <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Focus</Text>
 
-      <View style={styles.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={{ gap: 8 }}>
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab}
@@ -228,12 +230,13 @@ export default function FocusScreen() {
             <Text style={[styles.tabText, { color: activeTab === tab ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold }]}>{tab}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       <View style={styles.flex}>
         {activeTab === 'Wisdom' && <WisdomView theme={theme} user={user} />}
         {activeTab === 'Confidence' && <ConfidenceView theme={theme} user={user} canAccess={canAccess} handleGate={handleGate} />}
         {activeTab === 'Convo Lab' && <ConvoLabView theme={theme} user={user} canAccess={canAccess} handleGate={handleGate} initialScenarioId={params.scenario} />}
+        {activeTab === 'Library' && <LibraryView theme={theme} user={user} />}
       </View>
     </SafeAreaView>
   );
@@ -719,11 +722,340 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
   );
 }
 
+// ─── Library View ─────────────────────────────────────────────────────────────
+const CHANNEL_COLORS: Record<string, string> = {
+  'Sneako': '#E67E22',
+  'Andrew Tate': '#C0392B',
+  'Chris Bumstead': '#27AE60',
+  'Myron Gaines': '#8E44AD',
+  'Fresh & Fit': '#8E44AD',
+  'Andrew Huberman': '#2980B9',
+  'David Goggins': '#E74C3C',
+  'Ryan Holiday': '#16A085',
+  'Athlean-X': '#D35400',
+  'Jeff Nippard': '#9B59B6',
+  'Calisthenic Movement': '#1ABC9C',
+  'Dr Mike Mew': '#3498DB',
+  'Becker': '#F39C12',
+  'Better Ideas': '#2ECC71',
+  'Charisma on Command': '#E91E63',
+};
+
+const CHANNEL_GROUPS: { name: string; platform: string; creators: string[] }[] = [
+  { name: 'Sneako', platform: 'YouTube + Rumble', creators: ['Sneako'] },
+  { name: 'Andrew Tate', platform: 'Rumble', creators: ['Andrew Tate'] },
+  { name: 'Chris Bumstead (CBum)', platform: 'YouTube', creators: ['Chris Bumstead'] },
+  { name: 'Myron Gaines', platform: 'YouTube', creators: ['Myron Gaines', 'Fresh & Fit'] },
+  { name: 'Self Improvement Essentials', platform: 'YouTube', creators: ['Andrew Huberman', 'David Goggins', 'Ryan Holiday', 'Better Ideas'] },
+  { name: 'Fitness & Body', platform: 'YouTube', creators: ['Athlean-X', 'Jeff Nippard', 'Calisthenic Movement'] },
+  { name: 'Looksmaxx', platform: 'YouTube', creators: ['Dr Mike Mew', 'Becker'] },
+  { name: 'Social Skills', platform: 'YouTube', creators: ['Charisma on Command'] },
+];
+
+function LibraryView({ theme, user }: any) {
+  const [libTab, setLibTab] = useState<'videos' | 'books'>('videos');
+  const [videos, setVideos] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [videoFilter, setVideoFilter] = useState('all');
+  const [bookFilter, setBookFilter] = useState('all');
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [vRes, bRes, fRes] = await Promise.all([
+        supabase.from('library_videos').select('*').eq('is_active', true).order('sort_order'),
+        supabase.from('library_books').select('*').eq('is_active', true).order('sort_order'),
+        user ? supabase.from('favorites').select('item_id').eq('user_id', user.id) : Promise.resolve({ data: [] }),
+      ]);
+      setVideos(vRes.data || []);
+      setBooks(bRes.data || []);
+      const ids = new Set<string>((fRes.data || []).map((f: any) => f.item_id));
+      setSavedIds(ids);
+    } catch (e) {
+      console.log('Library fetch error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async (itemType: string, itemId: string, title: string, imageUrl?: string, subtitle?: string) => {
+    if (!user) return;
+    if (savedIds.has(itemId)) {
+      Alert.alert('Already Saved', 'This item is in your wishlist.');
+      return;
+    }
+    try {
+      await supabase.from('favorites').insert({
+        user_id: user.id,
+        item_type: itemType,
+        item_id: itemId,
+        item_title: title,
+        item_image_url: imageUrl || null,
+        item_subtitle: subtitle || null,
+      });
+      setSavedIds(prev => new Set([...prev, itemId]));
+      Alert.alert('Saved', 'Added to your wishlist.');
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const handleShareVideo = async (video: any) => {
+    const isRealYT = video.youtube_id && !video.youtube_id.includes('_');
+    const url = isRealYT ? `https://youtu.be/${video.youtube_id}` : `MAXX Library — ${video.title}`;
+    try {
+      await Share.share({ message: `${video.title}\n${url}\n\nShared from MAXX App`, url });
+    } catch (e) {}
+  };
+
+  const getInitials = (name: string) => {
+    const parts = name.split(' ');
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const getChannelColor = (name: string) => {
+    // Pick color from the first creator match
+    for (const key of Object.keys(CHANNEL_COLORS)) {
+      if (name.toLowerCase().includes(key.toLowerCase())) return CHANNEL_COLORS[key];
+    }
+    return '#C8A96E';
+  };
+
+  const videoCategories = ['all', ...Array.from(new Set(videos.map(v => v.category).filter(Boolean)))];
+  const bookCategories = ['all', ...Array.from(new Set(books.map(b => b.category).filter(Boolean)))];
+
+  const filteredVideos = videoFilter === 'all' ? videos : videos.filter(v => v.category === videoFilter);
+
+  // Group filtered videos by channel group
+  const channelSections = CHANNEL_GROUPS.map(group => {
+    const groupVids = filteredVideos.filter(v => group.creators.some(c => c.toLowerCase() === v.creator?.toLowerCase()));
+    return { ...group, videos: groupVids };
+  }).filter(g => g.videos.length > 0);
+
+  const filteredBooks = bookFilter === 'all' ? books : books.filter(b => b.category === bookFilter);
+
+  if (loading) {
+    return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={theme.gold} size="large" /></View>;
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      {/* Inner Tabs */}
+      <View style={[styles.libInnerTabs, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+        <TouchableOpacity
+          style={[styles.libInnerTab, libTab === 'videos' && { backgroundColor: theme.gold + '22' }]}
+          onPress={() => setLibTab('videos')}
+        >
+          <Text style={{ color: libTab === 'videos' ? theme.gold : theme.textMuted, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 1 }}>VIDEOS</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.libInnerTab, libTab === 'books' && { backgroundColor: theme.gold + '22' }]}
+          onPress={() => setLibTab('books')}
+        >
+          <Text style={{ color: libTab === 'books' ? theme.gold : theme.textMuted, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 1 }}>BOOKS</Text>
+        </TouchableOpacity>
+      </View>
+
+      {libTab === 'videos' ? (
+        <>
+          {/* Filter pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.md, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {videoCategories.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  onPress={() => setVideoFilter(cat)}
+                  style={[styles.filterPill, { backgroundColor: videoFilter === cat ? theme.gold + '22' : theme.bgElevated }]}
+                >
+                  <Text style={{ color: videoFilter === cat ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold, fontSize: 11, textTransform: 'capitalize' }}>{cat === 'all' ? 'All' : cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Channel Sections */}
+          {channelSections.map((ch, ci) => {
+            const channelCol = getChannelColor(ch.name);
+            return (
+              <View key={ci} style={{ marginBottom: SPACING.xl }}>
+                {/* Channel Header */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                  <View style={[styles.channelCircle, { backgroundColor: channelCol + '22', borderColor: channelCol + '44' }]}>
+                    <Text style={{ color: channelCol, fontFamily: FONTS.bold, fontSize: 14 }}>{getInitials(ch.name)}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 14 }}>{ch.name}</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 10, fontFamily: FONTS.regular }}>{ch.platform}</Text>
+                  </View>
+                </View>
+
+                {/* Horizontal Video Scroll */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }}>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    {ch.videos.map((v: any) => {
+                      const isRealYT = v.youtube_id && !v.youtube_id.includes('_');
+                      const thumbUri = isRealYT
+                        ? `https://img.youtube.com/vi/${v.youtube_id}/hqdefault.jpg`
+                        : undefined;
+                      const isSaved = savedIds.has(v.id);
+                      return (
+                        <View key={v.id} style={{ width: 145 }}>
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            onPress={() => {
+                              if (isRealYT) {
+                                Linking.openURL(`https://www.youtube.com/watch?v=${v.youtube_id}`);
+                              } else {
+                                Alert.alert(v.title, v.description || 'No additional info.');
+                              }
+                            }}
+                            style={[styles.libThumbWrap, { backgroundColor: channelCol + '15' }]}
+                          >
+                            {thumbUri ? (
+                              <Image source={{ uri: thumbUri }} style={styles.libThumb} />
+                            ) : (
+                              <View style={[styles.libThumb, { backgroundColor: channelCol + '33', justifyContent: 'center', alignItems: 'center' }]}>
+                                <Text style={{ color: channelCol, fontFamily: FONTS.bold, fontSize: 20 }}>{getInitials(v.creator)}</Text>
+                              </View>
+                            )}
+                            {/* Play overlay */}
+                            <View style={styles.libPlayOverlay}>
+                              <View style={[styles.libPlayCircle, { backgroundColor: theme.gold }]}>
+                                <Feather name="play" size={16} color="#000" />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                          <Text style={{ color: theme.textMuted, fontSize: 10, fontFamily: FONTS.regular, marginTop: 6, lineHeight: 14 }} numberOfLines={2}>
+                            {v.title}
+                          </Text>
+                          {/* Share + Save pills */}
+                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                            <TouchableOpacity onPress={() => handleShareVideo(v)} style={[styles.libMiniPill, { borderColor: theme.border }]}>
+                              <Feather name="share" size={10} color={theme.textMuted} />
+                              <Text style={{ color: theme.textMuted, fontSize: 9, fontFamily: FONTS.medium }}>Share</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleSave('video', v.id, v.title, thumbUri, v.creator)}
+                              style={[styles.libMiniPill, { borderColor: isSaved ? theme.gold : theme.border }]}
+                            >
+                              <Feather name="bookmark" size={10} color={isSaved ? theme.gold : theme.textMuted} />
+                              <Text style={{ color: isSaved ? theme.gold : theme.textMuted, fontSize: 9, fontFamily: FONTS.medium }}>Save</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+            );
+          })}
+
+          {channelSections.length === 0 && (
+            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+              <Feather name="video-off" size={40} color={theme.textMuted} />
+              <Text style={{ color: theme.textMuted, marginTop: 12, fontFamily: FONTS.regular }}>No videos match this filter.</Text>
+            </View>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Book Filter Pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.md, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {bookCategories.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  onPress={() => setBookFilter(cat)}
+                  style={[styles.filterPill, { backgroundColor: bookFilter === cat ? theme.gold + '22' : theme.bgElevated }]}
+                >
+                  <Text style={{ color: bookFilter === cat ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold, fontSize: 11, textTransform: 'capitalize' }}>{cat === 'all' ? 'All' : cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Book Cards */}
+          {filteredBooks.map((book: any) => {
+            const bookColor = CHANNEL_COLORS[book.author] || '#C8A96E';
+            const isSaved = savedIds.has(book.id);
+            return (
+              <View key={book.id} style={[styles.libBookCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+                {/* Mini cover rectangle */}
+                <View style={[styles.libBookCover, { backgroundColor: bookColor + '33' }]}>
+                  <Text style={{ color: bookColor, fontFamily: FONTS.bold, fontSize: 10, textAlign: 'center', lineHeight: 14 }} numberOfLines={3}>
+                    {book.title}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, paddingLeft: 14 }}>
+                  <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 15 }} numberOfLines={1}>{book.title}</Text>
+                  <Text style={{ color: theme.gold, fontSize: 12, fontFamily: FONTS.medium, marginTop: 2 }}>{book.author}</Text>
+                  {book.key_lessons && book.key_lessons.length > 0 && (
+                    <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 6, fontFamily: FONTS.regular, lineHeight: 16 }} numberOfLines={2}>
+                      {book.key_lessons[0]}
+                    </Text>
+                  )}
+                  {/* Buy + Save */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                    {book.buy_link ? (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(book.buy_link)}
+                        style={[styles.libBookBtn, { backgroundColor: theme.gold + '18', borderColor: theme.gold + '44' }]}
+                      >
+                        <Text style={{ color: theme.gold, fontSize: 11, fontFamily: FONTS.bold }}>Buy Now→</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                      onPress={() => handleSave('book', book.id, book.title, undefined, book.author)}
+                      style={[styles.libBookBtn, { borderColor: isSaved ? theme.gold : theme.border }]}
+                    >
+                      <Feather name="bookmark" size={12} color={isSaved ? theme.gold : theme.textMuted} />
+                      <Text style={{ color: isSaved ? theme.gold : theme.textMuted, fontSize: 11, fontFamily: FONTS.medium }}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+
+          {filteredBooks.length === 0 && (
+            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+              <Feather name="book" size={40} color={theme.textMuted} />
+              <Text style={{ color: theme.textMuted, marginTop: 12, fontFamily: FONTS.regular }}>No books match this filter.</Text>
+            </View>
+          )}
+        </>
+      )}
+      <View style={{ height: 80 }} />
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
   title: { fontSize: 28, paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
-  tabBar: { flexDirection: 'row', paddingHorizontal: SPACING.lg, marginTop: SPACING.md, gap: 8 },
+  tabBar: { flexDirection: 'row', paddingHorizontal: SPACING.lg, marginTop: SPACING.md },
+
+  // Library
+  libInnerTabs: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, overflow: 'hidden', marginBottom: SPACING.md },
+  libInnerTab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
+  channelCircle: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  libThumbWrap: { width: 145, height: 82, borderRadius: 10, overflow: 'hidden', position: 'relative' },
+  libThumb: { width: '100%', height: '100%' },
+  libPlayOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
+  libPlayCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', opacity: 0.9 },
+  libMiniPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+  libBookCard: { flexDirection: 'row', padding: SPACING.md, borderRadius: 14, borderWidth: 1, marginBottom: 12 },
+  libBookCover: { width: 52, height: 72, borderRadius: 6, justifyContent: 'center', alignItems: 'center', padding: 4 },
+  libBookBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
   tabBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10 },
   tabText: { fontSize: 13 },
   tabContent: { padding: SPACING.lg, gap: SPACING.md, paddingBottom: 80 },
