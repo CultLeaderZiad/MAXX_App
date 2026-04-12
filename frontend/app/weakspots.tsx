@@ -14,6 +14,7 @@ import { useTheme } from "../src/context/ThemeContext";
 import { Button } from "../src/components/Button";
 import { FONTS, SPACING, RADIUS } from "../src/constants/theme";
 import { WEAK_SPOT_OPTIONS } from "../src/constants/mockData";
+import { supabase } from "../lib/supabase";
 
 export default function WeakSpotsScreen() {
   const { theme } = useTheme();
@@ -129,6 +130,18 @@ export default function WeakSpotsScreen() {
               "onboarding_weak_spots",
               JSON.stringify(selected),
             );
+            // Persist to Supabase immediately so data isn't lost
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                await supabase
+                  .from('profiles')
+                  .update({ weak_spots: selected })
+                  .eq('id', user.id);
+              }
+            } catch (e) {
+              console.error('Weakspots Supabase write:', e);
+            }
             router.push({
               pathname: "/stats",
               params: { goals, weak_spots: JSON.stringify(selected) },
