@@ -26,7 +26,6 @@ type AuthContextType = {
   verifyOtp: (email: string, token: string) => Promise<{ error: any }>;
   refreshProfile: () => Promise<void>;
   fetchProfile: () => Promise<void>;
-  signInAsAdmin: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -177,41 +176,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { error };
   };
 
-  const signInAsAdmin = () => {
-    // Development bypass - create a mock session
-    const mockUser: User = {
-      id: 'dev-admin-id',
-      email: 'admin@maxx.app',
-      aud: 'authenticated',
-      role: 'authenticated',
-      email_confirmed_at: new Date().toISOString(),
-      app_metadata: {},
-      user_metadata: { full_name: 'Admin Tester' },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    
-    setUser(mockUser);
-    setProfile({
-      id: 'dev-admin-id',
-      email: 'admin@maxx.app',
-      full_name: 'Admin Tester',
-      role: 'admin',
-      onboarding_completed: true,
-      power_level: 99,
-      xp: 1000,
-      rank: 'Elite'
-    });
-    setSession({ 
-      user: mockUser, 
-      access_token: 'mock-token', 
-      refresh_token: 'mock-refresh', 
-      token_type: 'bearer', 
-      expires_in: 3600 
-    } as Session);
-    setLoading(false);
-  };
-
   const isAdmin = profile?.role === 'admin';
 
   return (
@@ -228,7 +192,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         verifyOtp,
         refreshProfile,
         fetchProfile: refreshProfile,
-        signInAsAdmin,
       }}
     >
       {children}

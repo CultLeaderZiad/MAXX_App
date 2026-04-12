@@ -28,7 +28,7 @@ import { FONTS, SPACING } from "../src/constants/theme";
 export default function OTPScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { verifyOtp, signInAsAdmin } = useAuth();
+  const { verifyOtp } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ email: string }>();
   const [code, setCode] = useState(["", "", "", "", "", ""]);
@@ -153,20 +153,6 @@ export default function OTPScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDevBypass = () => {
-    // For testing/admin bypass: go straight to dashboard with a mock session
-    Alert.alert("Admin Mode", "Login as Admin/Tester and view all features?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Enter App",
-        onPress: () => {
-          signInAsAdmin();
-          router.replace("/(tabs)");
-        },
-      },
-    ]);
   };
 
   const handleVerify = async (fullCode?: string) => {
@@ -327,20 +313,6 @@ export default function OTPScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={handleDevBypass}
-            style={{ marginTop: 24, alignSelf: "center", opacity: 0.5 }}
-          >
-            <Text
-              style={{
-                color: theme.textMuted,
-                fontSize: 12,
-                textDecorationLine: "underline",
-              }}
-            >
-              ADMIN/TESTER BYPASS
-            </Text>
-          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
