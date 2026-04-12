@@ -25,7 +25,7 @@ import { Button } from "../src/components/Button";
 
 import { FONTS, SPACING } from "../src/constants/theme";
 
-const OTP_LENGTH = 6;
+const OTP_LENGTH = 8;
 
 export default function OTPScreen() {
   const { theme } = useTheme();
@@ -141,7 +141,7 @@ export default function OTPScreen() {
     setError("");
 
     try {
-      const { error: verifyError } = await verifyOtp(email, otpCode);
+      const { error: verifyError } = await verifyOtp(email, otpCode, mode as string);
       if (verifyError) {
         // Provide user-friendly error messages
         const msg = verifyError.message?.toLowerCase() || "";
@@ -156,8 +156,12 @@ export default function OTPScreen() {
         // Clear the code inputs so user can re-enter
         setCode(Array(OTP_LENGTH).fill(""));
         inputs.current[0]?.focus();
+      } else {
+        if (mode === "recovery") {
+          router.replace("/reset-password");
+        }
+        // If success and not recovery, AuthContext handles navigation
       }
-      // If success, the auth state listener in AuthContext handles navigation
     } catch (e: any) {
       setError(e?.message || "An unexpected error occurred");
       shake();
@@ -186,6 +190,15 @@ export default function OTPScreen() {
             setCode(Array(OTP_LENGTH).fill(""));
             Alert.alert("Code Sent!", "Check your email for a new verification code.");
           }
+        } else {
+          setCountdown(60);
+          setCode(Array(OTP_LENGTH).fill(""));
+          Alert.alert("Code Sent!", "Check your email for a new verification code.");
+        }
+      } else if (mode === "recovery") {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+        if (resetError) {
+          setError(resetError.message || "Failed to resend recovery code");
         } else {
           setCountdown(60);
           setCode(Array(OTP_LENGTH).fill(""));
@@ -381,17 +394,17 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12, marginTop: 8, opacity: 0.6 },
   codeRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 6,
     marginTop: SPACING.xl,
     justifyContent: "center",
   },
   digitInput: {
-    width: 48,
-    height: 56,
-    borderRadius: 12,
+    width: 38,
+    height: 48,
+    borderRadius: 10,
     borderWidth: 1.5,
     textAlign: "center",
-    fontSize: 24,
+    fontSize: 20,
   },
   error: {
     color: "#E74C3C",

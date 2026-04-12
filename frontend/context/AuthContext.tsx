@@ -31,7 +31,7 @@ type AuthContextType = {
   ) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  verifyOtp: (email: string, token: string) => Promise<{ error: any }>;
+  verifyOtp: (email: string, token: string, mode?: string) => Promise<{ error: any }>;
   resendOtp: (email: string) => Promise<{ error: any }>;
   refreshProfile: () => Promise<void>;
   fetchProfile: () => Promise<void>;
@@ -180,11 +180,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   /**
-   * Verify OTP — tries 'email' type first (for signInWithOtp flow),
-   * falls back to 'signup' type (for signUp confirmation flow).
+   * Verify OTP — optionally pass mode to branch 'recovery' vs general auth.
    */
-  const verifyOtp = async (email: string, token: string) => {
-    // Try signup type first (most common for new registrations)
+  const verifyOtp = async (email: string, token: string, mode?: string) => {
+    if (mode === "recovery") {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'recovery',
+      });
+      return { error };
+    }
+
+    // Default: try signup type first (most common for new registrations)
     const { data, error } = await supabase.auth.verifyOtp({
       email,
       token,

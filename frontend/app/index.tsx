@@ -244,7 +244,15 @@ export default function WelcomeScreen() {
           No charge until Day 8 · Cancel anytime
         </Text>
 
-
+        <TouchableOpacity 
+          onPress={() => router.push("/login")}
+          style={{ alignItems: "center", marginTop: 8 }}
+          testID="login-link"
+        >
+          <Text style={{ color: theme.textSecondary, fontFamily: FONTS.regular, fontSize: 13 }}>
+            Already have an account? <Text style={{ color: theme.gold, fontFamily: FONTS.semiBold }}>Sign in</Text>
+          </Text>
+        </TouchableOpacity>
       </Animated.View>
       <Text
         style={{

@@ -20,7 +20,7 @@ import { TrialBanner } from "../src/components/TrialBanner";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 48;
-const CARD_GAP = 20;
+const CARD_GAP = 8;
 
 interface Plan {
   key: string;
@@ -106,8 +106,8 @@ export default function PlansScreen() {
     router.push({ pathname: "/payment", params: { plan: planKey, price } });
   };
 
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const page = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + CARD_GAP));
+  const onMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const page = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 40));
     setActivePage(page);
   };
 
@@ -146,21 +146,21 @@ export default function PlansScreen() {
         keyExtractor={(item) => item.key}
         horizontal
         pagingEnabled={false}
-        snapToInterval={CARD_WIDTH + CARD_GAP}
+        snapToInterval={SCREEN_WIDTH - 40}
         decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 16, paddingTop: 16 }}
         ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
-        onScroll={onScroll}
+        onMomentumScrollEnd={onMomentumScrollEnd}
         scrollEventThrottle={16}
         renderItem={({ item: plan }: { item: Plan }) => {
           const isPopular = plan.popular;
           return (
-            <View style={[styles.card, { backgroundColor: theme.bgSurface, borderColor: isPopular ? plan.color : theme.border }]}>
+            <View style={[styles.card, { backgroundColor: theme.bgSurface, borderColor: isPopular ? plan.color : theme.border, overflow: 'visible' }]}>
 
               {isPopular && (
                 <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
-                  <Text style={[styles.popularText, { fontFamily: FONTS.bold }]}>MOST POPULAR</Text>
+                  <Text style={[styles.popularText, { fontFamily: FONTS.cinzelBold }]}>MOST POPULAR</Text>
                 </View>
               )}
 
@@ -236,8 +236,10 @@ export default function PlansScreen() {
           <View
             key={i}
             style={[styles.dot, {
-              width: activePage === i ? 20 : 8,
-              backgroundColor: activePage === i ? theme.gold : theme.border,
+              width: activePage === i ? 8 : 6,
+              height: activePage === i ? 8 : 6,
+              borderRadius: activePage === i ? 4 : 3,
+              backgroundColor: activePage === i ? theme.gold : '#333333',
             }]}
           />
         ))}
@@ -268,13 +270,14 @@ const styles = StyleSheet.create({
   },
   popularBadge: {
     position: "absolute",
-    top: -13,
+    top: -12,
     alignSelf: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    zIndex: 10,
   },
-  popularText: { fontSize: 10, color: "#000", letterSpacing: 1 },
+  popularText: { fontSize: 11, color: "#000", fontFamily: FONTS.cinzelBold },
   cardHeader: { flexDirection: "row", alignItems: "center", marginTop: 8 },
   iconCircle: { width: 46, height: 46, borderRadius: 23, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   planName: { fontSize: 22, letterSpacing: 1.5 },
@@ -299,6 +302,6 @@ const styles = StyleSheet.create({
   featureText: { fontSize: 13, lineHeight: 18 },
   ctaBtn: { height: 54, justifyContent: "center", alignItems: "center", borderRadius: 14 },
   ctaText: { fontSize: 16 },
-  dotsRow: { flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: 20 },
+  dotsRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, paddingVertical: 20 },
   dot: { height: 8, borderRadius: 4 },
 });

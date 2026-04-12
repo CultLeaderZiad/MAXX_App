@@ -27,15 +27,20 @@ function RootLayoutNav() {
 
     // Prevent multiple rapid navigations
     const currentSegment = segments[0] as string | undefined;
-    const isPublic = !currentSegment || currentSegment === 'index' || currentSegment === 'otp' || currentSegment === 'login' || currentSegment === 'register';
+    const isPublic = !currentSegment || currentSegment === 'index' || currentSegment === 'otp' || currentSegment === 'login' || currentSegment === 'register' || currentSegment === 'forgot-password';
     const isOnboarding = currentSegment === 'goals' || currentSegment === 'weakspots' || currentSegment === 'plans' || currentSegment === 'payment' || currentSegment === 'stats';
+    const isReset = currentSegment === 'reset-password';
 
-    if (!session && !isPublic) {
+    if (!session && !isPublic && !isReset) {
       router.replace('/');
       return;
     }
     
     if (session) {
+      if (isReset) {
+         // Let them stay on reset password
+         return;
+      }
       if (profile && !profile.onboarding_completed) {
         if (!isOnboarding) {
           router.replace('/goals');
@@ -93,6 +98,8 @@ function RootLayoutNav() {
           <Stack.Screen name="otp" options={{ animation: 'fade' }} />
           <Stack.Screen name="login" options={{ animation: 'fade' }} />
           <Stack.Screen name="register" options={{ animation: 'fade' }} />
+          <Stack.Screen name="forgot-password" options={{ animation: 'fade' }} />
+          <Stack.Screen name="reset-password" options={{ animation: 'fade' }} />
           <Stack.Screen name="goals" options={{ animation: 'fade' }} />
           <Stack.Screen name="weakspots" options={{ animation: 'fade' }} />
           <Stack.Screen name="stats" options={{ animation: 'fade' }} />
