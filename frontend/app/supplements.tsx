@@ -12,7 +12,7 @@ import { FONTS } from '../src/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const CATEGORIES = ['All', 'Testosterone', 'Focus', 'Sleep', 'Recovery', 'Gut Health'];
+const CATEGORIES = ['All', 'Testosterone', 'Jaw & Bone', 'Energy', 'Focus', 'Sexual Health', 'Skin', 'Sleep'];
 const BRANDS = [
   { name: 'Gorilla Mind', tag: 'Aesthetic' },
   { name: 'Thorne', tag: 'Clinical' },
@@ -59,7 +59,7 @@ export default function SupplementCatalog() {
 
   const renderHeader = () => (
     <View style={styles.headerContent}>
-      <Text style={[styles.headerTitle, { fontFamily: FONTS.cinzelBold, color: theme.textPrimary }]}>SUPPLEMENT TRANSCRIPT</Text>
+      <Text style={[styles.headerTitle, { fontFamily: FONTS.cinzelBold, color: theme.textPrimary }]}>ALPHA PHARMA</Text>
       <Text style={[styles.headerSub, { fontFamily: FONTS.regular, color: theme.textMuted }]}>Science-backed · Bio-available · Optimized</Text>
 
       <TouchableOpacity 
