@@ -522,8 +522,8 @@ function NutritionTab({ theme }: { theme: any }) {
             fontStyle: "italic",
           }}
         >
-          "You are what you eat. If you eat processed GoySlop, you look like
-          GoySlop. Fuel the machine with Anti-Goyim boosters."
+          "You are what you eat. If you eat processed junk food, you look like
+          you eat processed junk food. Fuel the machine with clean whole foods."
         </Text>
       </View>
 
@@ -540,7 +540,7 @@ function NutritionTab({ theme }: { theme: any }) {
             { color: theme.error, fontFamily: FONTS.cinzelBold },
           ]}
         >
-          AVOID GOYSLOP
+          FOODS TO AVOID
         </Text>
         <Text
           style={{
@@ -599,7 +599,7 @@ function NutritionTab({ theme }: { theme: any }) {
             { color: theme.green, fontFamily: FONTS.cinzelBold },
           ]}
         >
-          FUEL WITH ANTI-GOYIM
+          FUEL YOUR BODY
         </Text>
         <Text
           style={{
