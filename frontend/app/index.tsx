@@ -89,7 +89,7 @@ function GoldParticle({
 export default function WelcomeScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { user, profile, loading, signInAsAdmin } = useAuth();
+  const { user, profile, loading } = useAuth();
   const router = useRouter();
   const letters = ["M", "A", "X", "X"];
   const letterAnims = useRef(letters.map(() => new Animated.Value(0))).current;
@@ -244,25 +244,7 @@ export default function WelcomeScreen() {
           No charge until Day 8 · Cancel anytime
         </Text>
 
-        {/* Development Bypass */}
-        <TouchableOpacity
-          onPress={() => {
-            signInAsAdmin();
-            router.replace("/(tabs)");
-          }}
-          style={{ marginTop: 12, opacity: 0.6 }}
-        >
-          <Text
-            style={{
-              color: theme.gold,
-              fontSize: 11,
-              textAlign: "center",
-              textDecorationLine: "underline",
-            }}
-          >
-            ADMIN / TESTER QUICK ACCESS
-          </Text>
-        </TouchableOpacity>
+
       </Animated.View>
       <Text
         style={{

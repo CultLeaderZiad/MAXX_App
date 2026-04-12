@@ -22,7 +22,21 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 48;
 const CARD_GAP = 20;
 
-const PLANS = [
+interface Plan {
+  key: string;
+  name: string;
+  tagline: string;
+  price: string;
+  priceNote: string;
+  trial: string;
+  color: string;
+  icon: "target" | "zap" | "award";
+  popular?: boolean;
+  features: string[];
+  excluded: string[];
+}
+
+const PLANS: Plan[] = [
   {
     key: "grind",
     name: "GRIND",
@@ -139,7 +153,7 @@ export default function PlansScreen() {
         ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        renderItem={({ item: plan }) => {
+        renderItem={({ item: plan }: { item: Plan }) => {
           const isPopular = plan.popular;
           return (
             <View style={[styles.card, { backgroundColor: theme.bgSurface, borderColor: isPopular ? plan.color : theme.border }]}>
