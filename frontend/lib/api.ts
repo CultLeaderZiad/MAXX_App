@@ -1,22 +1,20 @@
-import { supabase } from "./supabase";
+import { supabase } from './supabase';
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export async function apiCall(
   endpoint: string,
-  method: string = "GET",
-  body?: object,
+  method: string = 'POST',
+  body?: object
 ): Promise<any> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) throw new Error("Not authenticated");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('Not authenticated');
 
   const res = await fetch(`${API}${endpoint}`, {
     method,
     headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
