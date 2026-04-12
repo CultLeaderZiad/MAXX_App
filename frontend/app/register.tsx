@@ -246,6 +246,27 @@ export default function RegisterWizard() {
 
       if (error) throw error;
 
+      // Detect "fake" signup — user already exists
+      // Supabase returns a user with empty identities for repeated signups
+      const isRepeatedSignup =
+        data?.user &&
+        (!data.user.identities || data.user.identities.length === 0);
+
+      if (isRepeatedSignup) {
+        // User already registered — redirect to login instead
+        Alert.alert(
+          "Account Exists",
+          "This email is already registered. Please sign in instead.",
+          [
+            {
+              text: "Go to Login",
+              onPress: () => router.replace("/login"),
+            },
+          ],
+        );
+        return;
+      }
+
       // Save additional profile data to Supabase after signup
       if (data?.user?.id) {
         await supabase
@@ -260,9 +281,18 @@ export default function RegisterWizard() {
           .eq("id", data.user.id);
       }
 
-      router.push({ pathname: "/otp", params: { email } });
+      router.push({ pathname: "/otp", params: { email, mode: "signup" } });
     } catch (e: any) {
-      setError(e.message || "An unexpected error occurred");
+      const msg = (e.message || "").toLowerCase();
+      if (msg.includes("already registered") || msg.includes("already been registered")) {
+        Alert.alert(
+          "Account Exists",
+          "This email is already registered. Please sign in.",
+          [{ text: "Go to Login", onPress: () => router.replace("/login") }],
+        );
+      } else {
+        setError(e.message || "An unexpected error occurred");
+      }
     } finally {
       setLoading(false);
     }

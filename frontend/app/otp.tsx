@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -25,18 +25,28 @@ import { Button } from "../src/components/Button";
 
 import { FONTS, SPACING } from "../src/constants/theme";
 
+const OTP_LENGTH = 6;
+
 export default function OTPScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { verifyOtp } = useAuth();
+  const { verifyOtp, resendOtp } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ email: string }>();
-  const [code, setCode] = useState(["", "", "", "", "", ""]);
+  const params = useLocalSearchParams<{
+    email: string;
+    mode?: string; // "signup" | "login"
+  }>();
+  const email = (params.email ?? "") as string;
+  const mode = (params.mode ?? "signup") as string;
+
+  const [code, setCode] = useState(Array(OTP_LENGTH).fill(""));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
+  const [resending, setResending] = useState(false);
   const inputs = useRef<(TextInput | null)[]>([]);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const successAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (countdown > 0) {
@@ -44,6 +54,11 @@ export default function OTPScreen() {
       return () => clearTimeout(t);
     }
   }, [countdown]);
+
+  // Auto-focus first input
+  useEffect(() => {
+    setTimeout(() => inputs.current[0]?.focus(), 300);
+  }, []);
 
   const shake = () => {
     Animated.sequence([
@@ -71,111 +86,126 @@ export default function OTPScreen() {
   };
 
   const handleChange = (text: string, index: number) => {
-    // Handle paste logic if text > 1
+    // Handle paste — user pastes the full 6-digit code
     if (text.length > 1) {
-      const digits = text.split("").slice(0, 6);
+      const digits = text.replace(/\D/g, "").split("").slice(0, OTP_LENGTH);
       const newCode = [...code];
       digits.forEach((d, i) => {
-        if (index + i < 6) newCode[index + i] = d;
+        if (index + i < OTP_LENGTH) newCode[index + i] = d;
       });
       setCode(newCode);
-      if (digits.length === 6) {
-        handleVerify(newCode.join(""));
+      setError("");
+      const filled = newCode.join("");
+      if (filled.length === OTP_LENGTH) {
+        handleVerify(filled);
       } else {
-        const nextIndex = Math.min(index + digits.length, 5);
+        const nextIndex = Math.min(index + digits.length, OTP_LENGTH - 1);
         inputs.current[nextIndex]?.focus();
       }
       return;
     }
 
+    // Single digit
+    const digit = text.replace(/\D/g, "");
     const newCode = [...code];
-    newCode[index] = text;
+    newCode[index] = digit;
     setCode(newCode);
     setError("");
 
-    if (text && index < 5) {
+    if (digit && index < OTP_LENGTH - 1) {
       inputs.current[index + 1]?.focus();
     }
-    if (index === 5 && text) {
+    // Auto-submit when last digit entered
+    if (index === OTP_LENGTH - 1 && digit) {
       handleVerify(newCode.join(""));
     }
   };
 
   const handleKeyPress = (e: any, index: number) => {
     if (e.nativeEvent.key === "Backspace" && !code[index] && index > 0) {
+      const newCode = [...code];
+      newCode[index - 1] = "";
+      setCode(newCode);
       inputs.current[index - 1]?.focus();
     }
   };
 
-  const promptBiometric = async () => {
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-
-    if (hasHardware && isEnrolled) {
-      Alert.alert("Enable Face ID / Touch ID?", "Sign in faster next time", [
-        {
-          text: "Skip",
-          style: "cancel",
-          onPress: () => router.replace("/goals"),
-        },
-        {
-          text: "Enable",
-          onPress: async () => {
-            await AsyncStorage.setItem("maxx_biometric", "true");
-            router.replace("/goals");
-          },
-        },
-      ]);
-    } else {
-      router.replace("/goals");
-    }
-  };
-
-  const handleLinkVerified = async () => {
-    setLoading(true);
-    try {
-      // Try to get session - if the user clicked the link in browser,
-      // they might already be logged in if deep linking worked,
-      // or we can try to sign them in if we have the email.
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) {
-        router.replace("/(tabs)");
-      } else {
-        setError(
-          "Verification not detected yet. Please click the link in your email first.",
-        );
-        shake();
-      }
-    } catch (e) {
-      setError("Could not refresh session.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleVerify = async (fullCode?: string) => {
-    const otpCode = fullCode || code.join("");
-    if (otpCode.length < 6) {
-      setError("Please enter your code");
+    const otpCode = (fullCode || code.join("")).trim();
+    if (otpCode.length < OTP_LENGTH) {
+      setError(`Please enter the full ${OTP_LENGTH}-digit code`);
       shake();
       return;
     }
     setLoading(true);
+    setError("");
+
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: params.email as string,
-        token: otpCode,
-        type: "signup",
-      });
-      if (error) throw error;
-      // SUCCESS! Auth listener in _layout will handle redirect
+      const { error: verifyError } = await verifyOtp(email, otpCode);
+      if (verifyError) {
+        // Provide user-friendly error messages
+        const msg = verifyError.message?.toLowerCase() || "";
+        if (msg.includes("expired")) {
+          setError("Code expired. Tap Resend to get a new code.");
+        } else if (msg.includes("invalid") || msg.includes("incorrect")) {
+          setError("Invalid code. Check your email and try again.");
+        } else {
+          setError(verifyError.message || "Verification failed");
+        }
+        shake();
+        // Clear the code inputs so user can re-enter
+        setCode(Array(OTP_LENGTH).fill(""));
+        inputs.current[0]?.focus();
+      }
+      // If success, the auth state listener in AuthContext handles navigation
     } catch (e: any) {
-      setError(e?.message || "Verification failed");
+      setError(e?.message || "An unexpected error occurred");
       shake();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    setError("");
+    try {
+      // For signup mode, try resending the signup confirmation
+      if (mode === "signup") {
+        const { error: resendError } = await supabase.auth.resend({
+          type: "signup",
+          email,
+        });
+        if (resendError) {
+          // Fallback to signInWithOtp
+          const { error: otpError } = await resendOtp(email);
+          if (otpError) {
+            setError(otpError.message || "Failed to resend. Please wait and try again.");
+          } else {
+            setCountdown(60);
+            setCode(Array(OTP_LENGTH).fill(""));
+            Alert.alert("Code Sent!", "Check your email for a new verification code.");
+          }
+        } else {
+          setCountdown(60);
+          setCode(Array(OTP_LENGTH).fill(""));
+          Alert.alert("Code Sent!", "Check your email for a new verification code.");
+        }
+      } else {
+        // Login mode — use signInWithOtp
+        const { error: otpError } = await resendOtp(email);
+        if (otpError) {
+          setError(otpError.message || "Failed to resend code");
+        } else {
+          setCountdown(60);
+          setCode(Array(OTP_LENGTH).fill(""));
+          Alert.alert("Code Sent!", "Check your email for a new verification code.");
+        }
+      }
+    } catch (e: any) {
+      setError("Failed to resend code. Try again in a moment.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -198,6 +228,7 @@ export default function OTPScreen() {
         >
           <Feather name="arrow-left" size={24} color={theme.gold} />
         </TouchableOpacity>
+
         <View style={styles.content}>
           <Text
             style={[
@@ -213,18 +244,27 @@ export default function OTPScreen() {
               { color: theme.textSecondary, fontFamily: FONTS.regular },
             ]}
           >
-            Enter the code or click the{" "}
-            <Text style={{ color: theme.gold, fontWeight: "bold" }}>
-              Verification Link
-            </Text>{" "}
-            sent to{"\n"}
-            {params.email || "your email"}
+            Enter the {OTP_LENGTH}-digit code sent to{"\n"}
+            <Text style={{ color: theme.gold, fontFamily: FONTS.semiBold }}>
+              {email || "your email"}
+            </Text>
           </Text>
 
+          {/* Hint */}
+          <Text
+            style={[
+              styles.hint,
+              { color: theme.textMuted, fontFamily: FONTS.regular },
+            ]}
+          >
+            Check your inbox and spam folder
+          </Text>
+
+          {/* Code inputs */}
           <Animated.View
             style={[styles.codeRow, { transform: [{ translateX: shakeAnim }] }]}
           >
-            {code.map((digit, i) => (
+            {code.map((digit: string, i: number) => (
               <TextInput
                 key={i}
                 ref={(r) => {
@@ -239,10 +279,9 @@ export default function OTPScreen() {
                     borderColor: error
                       ? theme.red
                       : digit
-                        ? theme.borderActive
+                        ? theme.gold
                         : theme.border,
                     fontFamily: FONTS.bold,
-                    width: 50,
                   },
                 ]}
                 value={digit}
@@ -250,7 +289,7 @@ export default function OTPScreen() {
                 onKeyPress={(e) => handleKeyPress(e, i)}
                 keyboardType="number-pad"
                 textContentType="oneTimeCode"
-                maxLength={6} // Allow paste of full code
+                maxLength={OTP_LENGTH} // Allow paste of full code
                 selectTextOnFocus
               />
             ))}
@@ -260,37 +299,55 @@ export default function OTPScreen() {
             <Text
               style={[
                 styles.error,
-                { fontFamily: FONTS.medium, marginTop: 24 },
+                { fontFamily: FONTS.medium, marginTop: 20 },
               ]}
             >
               {error}
             </Text>
           ) : null}
 
-          <Text
-            style={[
-              styles.resend,
-              { color: theme.textMuted, fontFamily: FONTS.regular },
-            ]}
-          >
-            {countdown > 0 ? `Resend code in ${formatTime(countdown)}` : ""}
-          </Text>
-          {countdown === 0 && (
-            <TouchableOpacity
-              onPress={() => setCountdown(60)}
-              testID="resend-otp-btn"
-            >
+          {/* Countdown / Resend */}
+          <View style={styles.resendContainer}>
+            {countdown > 0 ? (
               <Text
                 style={[
-                  styles.resendActive,
-                  { color: theme.gold, fontFamily: FONTS.semiBold },
+                  styles.resend,
+                  { color: theme.textMuted, fontFamily: FONTS.regular },
                 ]}
               >
-                Resend Code
+                Resend code in {formatTime(countdown)}
               </Text>
-            </TouchableOpacity>
-          )}
+            ) : (
+              <TouchableOpacity
+                onPress={handleResend}
+                disabled={resending}
+                testID="resend-otp-btn"
+                style={styles.resendBtn}
+              >
+                <Feather
+                  name="refresh-cw"
+                  size={14}
+                  color={theme.gold}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.resendActive,
+                    {
+                      color: theme.gold,
+                      fontFamily: FONTS.semiBold,
+                      opacity: resending ? 0.5 : 1,
+                    },
+                  ]}
+                >
+                  {resending ? "Sending..." : "Resend Code"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+
+        {/* Bottom CTA */}
         <View
           style={[
             styles.bottom,
@@ -302,17 +359,7 @@ export default function OTPScreen() {
             onPress={() => handleVerify()}
             loading={loading}
             testID="otp-verify-btn"
-            style={{ marginBottom: 12 }}
           />
-          <TouchableOpacity
-            onPress={handleLinkVerified}
-            style={styles.linkVerifyBtn}
-          >
-            <Text style={[styles.linkVerifyText, { color: theme.gold }]}>
-              I clicked the verification link
-            </Text>
-          </TouchableOpacity>
-
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -331,33 +378,37 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.xl },
   title: { fontSize: 28 },
   sub: { fontSize: 14, marginTop: SPACING.sm, lineHeight: 22 },
+  hint: { fontSize: 12, marginTop: 8, opacity: 0.6 },
   codeRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
     marginTop: SPACING.xl,
     justifyContent: "center",
   },
   digitInput: {
-    width: 50,
-    height: 58,
+    width: 48,
+    height: 56,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     textAlign: "center",
     fontSize: 24,
   },
   error: {
     color: "#E74C3C",
     fontSize: 13,
-    marginTop: SPACING.md,
     textAlign: "center",
   },
-  resend: { fontSize: 13, marginTop: SPACING.lg, textAlign: "center" },
-  resendActive: { fontSize: 14, textAlign: "center", marginTop: SPACING.sm },
-  bottom: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl },
-  linkVerifyBtn: { alignItems: "center", paddingVertical: 8 },
-  linkVerifyText: {
-    fontSize: 14,
-    fontFamily: FONTS.semiBold,
-    textDecorationLine: "underline",
+  resendContainer: {
+    alignItems: "center",
+    marginTop: SPACING.lg,
   },
+  resend: { fontSize: 13, textAlign: "center" },
+  resendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  resendActive: { fontSize: 14, textAlign: "center" },
+  bottom: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl },
 });

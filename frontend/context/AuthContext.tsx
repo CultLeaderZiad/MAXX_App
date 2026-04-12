@@ -3,14 +3,16 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
 
+const ADMIN_EMAIL = 'cultleaderzoz.dev@gmail.com';
+
 type Profile = {
   id: string;
-  email: string;
   full_name: string;
   role: string;
   avatar_url?: string;
   phone?: string;
   date_of_birth?: string;
+  onboarding_completed?: boolean;
   [key: string]: any;
 };
 
@@ -20,10 +22,17 @@ type AuthContextType = {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
-  signUp: (email: string, password: string, fullName: string, phone: string, dob: string) => Promise<{ data: any; error: any }>;
+  signUp: (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string,
+    dob: string,
+  ) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<{ error: any }>;
+  resendOtp: (email: string) => Promise<{ error: any }>;
   refreshProfile: () => Promise<void>;
   fetchProfile: () => Promise<void>;
 };
@@ -41,7 +50,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!mounted) return;
         setSession(session);
         setUser(session?.user ?? null);
@@ -57,23 +68,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-        
-        // Don't set loading false immediately if we need to fetch profile
-        if (session?.user && event !== 'SIGNED_OUT') {
-          setSession(session);
-          setUser(session.user);
-          await fetchProfile(session.user.id);
-        } else {
-          setSession(session);
-          setUser(session?.user ?? null);
-          setProfile(null);
-        }
-        setLoading(false);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      if (session?.user && event !== 'SIGNED_OUT') {
+        setSession(session);
+        setUser(session.user);
+        await fetchProfile(session.user.id);
+      } else {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setProfile(null);
       }
-    );
+      setLoading(false);
+    });
 
     return () => {
       mounted = false;
@@ -88,33 +98,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .select('*')
         .eq('id', userId)
         .single();
-      
+
       if (error && error.code === 'PGRST116') {
-        // Profile not found, create default profile
+        // Profile not found — create default profile
         const { data: userData } = await supabase.auth.getUser();
         const metadata = userData?.user?.user_metadata;
-        
+        const userEmail = userData?.user?.email;
+
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert({
             id: userId,
-            email: userData?.user?.email,
             full_name: metadata?.full_name || 'Brother',
-            role: 'user',
+            role: userEmail === ADMIN_EMAIL ? 'admin' : 'user',
             xp: 0,
             power_level: 0,
             onboarding_completed: false,
-            rank: 'Beginner',
+            level_title: 'Beginner',
             goals: [],
             weak_spots: [],
-            workouts_completed: 0,
-            meditation_minutes: 0,
-            creatine_days: 0,
-            nofap_days: 0
           })
           .select()
           .single();
-          
+
         if (createError) {
           console.error('Error creating profile:', createError);
         } else {
@@ -138,7 +144,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, phone: string, dob: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string,
+    dob: string,
+  ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -150,7 +162,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         },
       },
     });
-    
+
     return { data, error };
   };
 
@@ -167,11 +179,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     router.replace('/');
   };
 
+  /**
+   * Verify OTP — tries 'email' type first (for signInWithOtp flow),
+   * falls back to 'signup' type (for signUp confirmation flow).
+   */
   const verifyOtp = async (email: string, token: string) => {
+    // Try signup type first (most common for new registrations)
     const { data, error } = await supabase.auth.verifyOtp({
       email,
       token,
       type: 'signup',
+    });
+
+    if (error) {
+      // If signup type fails, try email type (for signInWithOtp re-sends)
+      const { data: emailData, error: emailError } =
+        await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: 'email',
+        });
+      return { error: emailError };
+    }
+
+    return { error: null };
+  };
+
+  /**
+   * Resend the OTP. Uses signInWithOtp which sends a fresh 6-digit code
+   * via the Magic Link email template. This works for both new and
+   * existing users.
+   */
+  const resendOtp = async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+      },
     });
     return { error };
   };
@@ -190,6 +234,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         signIn,
         signOut,
         verifyOtp,
+        resendOtp,
         refreshProfile,
         fetchProfile: refreshProfile,
       }}
