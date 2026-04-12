@@ -18,6 +18,7 @@ import { supabase } from "../../lib/supabase";
 import { Card } from "../../src/components/Card";
 import { Badge } from "../../src/components/Badge";
 import { FONTS, SPACING, RADIUS } from "../../src/constants/theme";
+import { usePlan } from "../../hooks/usePlan";
 
 const SUB_TABS = [
   "Jaw & Face",
@@ -142,6 +143,7 @@ export default function TrainScreen() {
 function ProgramsTab({ category, theme }: { category: string; theme: any }) {
   const { profile } = useAuth();
   const router = useRouter();
+  const { canAccess, handleGate } = usePlan();
   const [programs, setPrograms] = useState<any[]>([]);
   const [exercises, setExercises] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
@@ -175,7 +177,7 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
         let isLocked = false;
         if (p.unlock_level && (profile?.power_level || 1) < p.unlock_level)
           isLocked = true;
-        if (p.required_plan && profile?.plan === "free_trial") isLocked = true;
+        if (p.required_plan && !canAccess(p.required_plan)) isLocked = true;
         return { ...p, locked: isLocked };
       });
       setPrograms(progs);
@@ -285,7 +287,7 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
           <View key={prog.id} style={{ marginBottom: SPACING.lg }}>
             <TouchableOpacity
               activeOpacity={0.9}
-              onPress={() => (prog.locked ? router.push("/plans") : null)}
+              onPress={() => (prog.locked ? handleGate(prog.required_plan || 'grind') : null)}
             >
               <Card
                 style={StyleSheet.flatten([
@@ -641,6 +643,52 @@ function NutritionTab({ theme }: { theme: any }) {
             </Text>
           ))}
         </View>
+      </Card>
+
+      <Card
+        style={{
+          ...StyleSheet.flatten(styles.guideCard),
+          borderColor: theme.gold,
+          marginTop: 10,
+          marginBottom: 10,
+          alignItems: 'center',
+          backgroundColor: 'rgba(200, 169, 110, 0.05)',
+        }}
+      >
+        <Feather name="zap" size={24} color={theme.gold} style={{ marginBottom: 8 }} />
+        <Text
+          style={[
+            styles.guideTitle,
+            { color: theme.gold, fontFamily: FONTS.cinzelBold, textAlign: 'center' },
+          ]}
+        >
+          SUPPLEMENTATION
+        </Text>
+        <Text
+          style={{
+            color: theme.textSecondary,
+            marginTop: 6,
+            lineHeight: 20,
+            fontFamily: FONTS.regular,
+            textAlign: 'center',
+            marginBottom: 16,
+          }}
+        >
+          Optimize your physical and mental edge. Access the full MAXX supplement catalog and get your unique, personalized AI-generated stack.
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.push('/supplements')}
+          style={{
+            backgroundColor: theme.gold,
+            paddingVertical: 12,
+            paddingHorizontal: 24,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 1 }}>
+            VIEW SUPPLEMENTS
+          </Text>
+        </TouchableOpacity>
       </Card>
 
       {guides.length === 0 ? (

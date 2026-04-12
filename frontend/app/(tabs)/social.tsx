@@ -14,6 +14,7 @@ import { Card } from '../../src/components/Card';
 import { BlurView } from 'expo-blur';
 import { XPToast } from '../../src/components/XPToast';
 import { formatDistanceToNow } from 'date-fns';
+import { usePlan } from '../../hooks/usePlan';
 
 const TABS = ['Audit', 'Dating IQ', 'Brotherhood'];
 const PLATFORMS = ['Instagram', 'TikTok', 'Twitter', 'LinkedIn', 'Tinder'];
@@ -26,14 +27,30 @@ export default function SocialScreen() {
   const [activeTab, setActiveTab] = useState('Brotherhood');
   const [activePlatform, setActivePlatform] = useState('Instagram');
   const [aiEngine, setAiEngine] = useState('Gemini');
+  const { canAccess, handleGate } = usePlan();
 
   // Brotherhood State
   const [posts, setPosts] = useState<any[]>([]);
   const [showCompose, setShowCompose] = useState(false);
   const [newPostText, setNewPostText] = useState('');
   const [newPostType, setNewPostType] = useState('WIN');
+  const [newPostImage, setNewPostImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [toastVis, setToastVis] = useState(false);
+
+  const EMOJI_QUICK_ACTIONS = ['🏆', '🔥', '💪', '🚀', '🧠', '💼'];
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.2,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0].base64) {
+      setNewPostImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
 
   // Audit state
   const [bioText, setBioText] = useState('');
@@ -97,11 +114,13 @@ export default function SocialScreen() {
       anon_display_name: anonName,
       respect_count: 0,
       is_flagged: false,
+      image_url: newPostImage
     };
     try {
       const { error } = await supabase.from('community_posts').insert(newP);
       if (!error) {
         setNewPostText('');
+        setNewPostImage(null);
         setShowCompose(false);
         setToastVis(true);
         fetchPosts();
@@ -255,6 +274,13 @@ export default function SocialScreen() {
                   </View>
                 </View>
                 <Text style={[styles.postText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{post.content}</Text>
+                
+                {post.image_url && (
+                  <View style={styles.postImageWrap}>
+                    <Image source={{ uri: post.image_url }} style={styles.postImage} />
+                  </View>
+                )}
+
                 <View style={styles.postFooter}>
                   <Text style={[styles.postTime, { color: theme.textMuted }]}>
                     {post.created_at ? formatDistanceToNow(new Date(post.created_at)) + ' ago' : 'Recently'}
@@ -286,10 +312,10 @@ export default function SocialScreen() {
 
   const DatingIQView = () => {
     const lessons = [
-      { id: 1, title: 'The Approach', time: '5 min', number: '01', scenario: 'cold_approach' },
-      { id: 2, title: 'Texting Game', time: '8 min', number: '02', scenario: 'texting_game' },
-      { id: 3, title: 'First Date Logistics', time: '6 min', number: '03', scenario: 'first_date' },
-      { id: 4, title: 'Escalation', time: '7 min', number: '04', locked: true },
+      { id: 1, title: 'The Approach', time: '5 min', number: '01', scenario: 'cold_approach', plan: 'trial' },
+      { id: 2, title: 'Texting Game', time: '8 min', number: '02', scenario: 'texting_game', plan: 'sigma' },
+      { id: 3, title: 'First Date Logistics', time: '6 min', number: '03', scenario: 'first_date', plan: 'trial' },
+      { id: 4, title: 'Escalation', time: '7 min', number: '04', scenario: 'number_close', plan: 'alpha' },
     ];
 
     return (
@@ -298,19 +324,22 @@ export default function SocialScreen() {
           <TouchableOpacity
             key={l.id}
             onPress={() => {
-              if (l.locked) return;
+              if (!canAccess(l.plan)) {
+                handleGate(l.plan);
+                return;
+              }
               router.push({ pathname: '/focus', params: { scenario: l.scenario } });
             }}
           >
-            <Card style={StyleSheet.flatten([styles.lessonCard, { opacity: l.locked ? 0.6 : 1, borderColor: l.locked ? theme.border : theme.gold + '22' }])}>
+            <Card style={StyleSheet.flatten([styles.lessonCard, { opacity: !canAccess(l.plan) ? 0.6 : 1, borderColor: !canAccess(l.plan) ? theme.border : theme.gold + '22' }])}>
               <View style={styles.lessonLeft}>
-                <Text style={[styles.lessonNum, { color: l.locked ? theme.textMuted : theme.gold, fontFamily: FONTS.cinzelBold }]}>{l.number}</Text>
+                <Text style={[styles.lessonNum, { color: !canAccess(l.plan) ? theme.textMuted : theme.gold, fontFamily: FONTS.cinzelBold }]}>{l.number}</Text>
                 <View>
                   <Text style={[styles.lessonTitle, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>{l.title}</Text>
                   <Text style={[styles.lessonTime, { color: theme.textSecondary }]}>{l.time} read • Practice now</Text>
                 </View>
               </View>
-              {l.locked ? <Feather name="lock" size={18} color={theme.textMuted} /> : <Feather name="play-circle" size={20} color={theme.gold} />}
+              {!canAccess(l.plan) ? <Feather name="lock" size={18} color={theme.textMuted} /> : <Feather name="play-circle" size={20} color={theme.gold} />}
             </Card>
           </TouchableOpacity>
         ))}
@@ -383,9 +412,31 @@ export default function SocialScreen() {
                 value={newPostText}
                 onChangeText={setNewPostText}
               />
+              <View style={styles.composeToolsRow}>
+                <View style={styles.emojiRow}>
+                  {EMOJI_QUICK_ACTIONS.map(em => (
+                    <TouchableOpacity key={em} onPress={() => setNewPostText(prev => prev + em)} style={styles.emojiBtn}>
+                      <Text style={{ fontSize: 18 }}>{em}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity onPress={pickImage} style={[styles.imgBtn, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}>
+                  <Feather name="image" size={18} color={theme.gold} />
+                </TouchableOpacity>
+              </View>
+
+              {newPostImage && (
+                <View style={styles.composeImgPreviewWrap}>
+                  <Image source={{ uri: newPostImage }} style={styles.composeImgPreview} />
+                  <TouchableOpacity onPress={() => setNewPostImage(null)} style={styles.composeImgRemove}>
+                    <Feather name="x" size={14} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <Text style={{ color: theme.textMuted, fontSize: 11, textAlign: 'right', marginBottom: SPACING.md }}>{newPostText.length}/500</Text>
 
-              <Button title={posting ? 'BROADCASTING...' : 'POST TO BROTHERHOOD'} disabled={posting} onPress={handlePost} style={{ marginTop: SPACING.md }} />
+              <Button title={posting ? 'BROADCASTING...' : 'POST TO BROTHERHOOD'} disabled={posting} onPress={handlePost} style={{ marginTop: SPACING.xs }} />
             </View>
           </KeyboardAvoidingView>
         </BlurView>
@@ -470,4 +521,13 @@ const styles = StyleSheet.create({
   composeInput: { height: 100, borderRadius: 12, borderWidth: 1, padding: SPACING.md, textAlignVertical: 'top', marginBottom: SPACING.md },
   composeTags: { flexDirection: 'row', gap: 8, marginBottom: SPACING.xl, flexWrap: 'wrap' },
   cTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  composeToolsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+  emojiRow: { flexDirection: 'row', gap: 6 },
+  emojiBtn: { padding: 4 },
+  imgBtn: { padding: 8, borderRadius: 8, borderWidth: 1 },
+  composeImgPreviewWrap: { position: 'relative', marginBottom: SPACING.md, alignSelf: 'flex-start' },
+  composeImgPreview: { width: 100, height: 100, borderRadius: 8, resizeMode: 'cover' },
+  composeImgRemove: { position: 'absolute', top: -8, right: -8, backgroundColor: '#E74C3C', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  postImageWrap: { marginBottom: SPACING.md, borderRadius: 12, overflow: 'hidden' },
+  postImage: { width: '100%', height: 200, resizeMode: 'cover' },
 });

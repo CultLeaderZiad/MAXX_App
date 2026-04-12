@@ -165,8 +165,19 @@ export default function SupplementCatalog() {
             isFeatured && { shadowColor: theme.gold || '#C8A96E', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 }
           ]}
         >
-          <View style={[styles.suppImageContainer, { backgroundColor: '#FFF' }]}>
-            <Image source={{ uri: item.image_url }} style={styles.suppImage} />
+          <View style={[styles.suppImageContainer, { backgroundColor: '#FFF', overflow: 'hidden' }]}>
+            {item.image_url ? (
+              <Image source={{ uri: item.image_url }} style={styles.suppImage} />
+            ) : (
+              <View style={{ flex: 1, backgroundColor: 'rgba(200,169,110,0.1)', width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                <Feather name={
+                  item.category.includes('Test') ? 'activity' :
+                  item.category.includes('Bone') ? 'hexagon' :
+                  item.category.includes('Sleep') ? 'moon' :
+                  item.category.includes('Focus') ? 'target' : 'zap'
+                } size={28} color={theme.gold || '#C8A96E'} />
+              </View>
+            )}
           </View>
           
           <View style={styles.suppInfo}>

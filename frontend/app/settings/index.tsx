@@ -246,7 +246,10 @@ export default function SettingsScreen() {
             value={mode === "dark"}
             onToggle={toggleTheme}
           />
-          <Item label="AI Engine" value="Gemini" onPress={() => {}} />
+          <Item label="AI Engine" value="Gemini / BYOK" onPress={() => {}} />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/focus')} style={{ paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md }}>
+            <Text style={{ color: theme.gold, fontFamily: FONTS.semiBold, fontSize: 13 }}>Configure AI API Key in Convo Lab</Text>
+          </TouchableOpacity>
         </Section>
 
         <Section title="SUBSCRIPTION">

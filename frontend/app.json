@@ -17,7 +17,7 @@
     ],
     "icon": "./assets/images/icon.png",
     "scheme": "maxx",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true

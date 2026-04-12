@@ -310,9 +310,14 @@ export default function HomeScreen() {
 
         {/* Action Grid */}
         <View style={styles.actionGrid}>
-          <FuturisticButton label="TRAIN" icon="activity" onPress={() => router.push('/(tabs)/train')} delay={300} />
-          <FuturisticButton label="FOCUS" icon="target" onPress={() => router.push('/(tabs)/focus')} delay={350} color="#4A90D9" />
-          <FuturisticButton label="SUPPS" icon="command" onPress={() => router.push('/supplements')} delay={400} color="#2ECC71" />
+          <View style={{ flexDirection: 'row', gap: 14 }}>
+            <FuturisticButton label="TRAIN" icon="activity" onPress={() => router.push('/(tabs)/train')} delay={300} />
+            <FuturisticButton label="FOCUS" icon="target" onPress={() => router.push('/(tabs)/focus')} delay={350} color="#4A90D9" />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 14, marginTop: 14 }}>
+            <FuturisticButton label="SUPPS" icon="command" onPress={() => router.push('/supplements')} delay={400} color="#2ECC71" />
+            <FuturisticButton label="LIBRARY" icon="book-open" onPress={() => router.push('/library')} delay={450} color="#9b59b6" />
+          </View>
         </View>
 
         {/* Active Missions */}
@@ -401,7 +406,7 @@ const styles = StyleSheet.create({
   timerValue: { fontSize: 26, fontFamily: FONTS.cinzelBold, textAlign: 'center' },
   timerLabel: { fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 6, letterSpacing: 1.5, fontFamily: FONTS.bold },
   timerSeparator: { color: 'rgba(255,255,255,0.1)', fontSize: 22, marginBottom: 18 },
-  actionGrid: { flexDirection: 'row', gap: 14, paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl },
+  actionGrid: { flexDirection: 'column', paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl },
   actionBtn: { flex: 1, borderRadius: 28, borderWidth: 1, paddingVertical: 24, alignItems: 'center', gap: 14, overflow: 'hidden' },
   glowRing: { position: 'absolute', width: '150%', height: '150%', borderRadius: 100, borderWidth: 2 },
   actionIconWrap: { width: 54, height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center' },

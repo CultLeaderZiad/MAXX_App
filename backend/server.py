@@ -105,6 +105,7 @@ class ConversationRequest(BaseModel):
     scenario: str
     messages: List[Dict[str, str]]
     user_message: str
+    api_key: Optional[str] = None
 
 class SupportTicketRequest(BaseModel):
     name: str
@@ -331,7 +332,8 @@ async def conversation(
     """AI Convo Lab — handles scenario-based conversation practice."""
     # Security: Gemini API key stays server-side only
     try:
-        if not GEMINI_API_KEY:
+        active_key = req.api_key or GEMINI_API_KEY
+        if not active_key:
             fallbacks = {
                 "first_date": "That's interesting... tell me more.",
                 "cold_approach": "Oh, um... you kind of surprised me there.",
@@ -340,7 +342,6 @@ async def conversation(
             }
             return {"reply": fallbacks.get(req.scenario, fallbacks["default"])}
 
-        model = genai.GenerativeModel('gemini-1.5-flash')
         system_prompt = {
             "first_date": "You are a young woman on a first date at a coffee shop. React realistically. After 8 exchanges give a score 1-10 and honest feedback.",
             "cold_approach": "You are a busy young woman on the street. A man just stopped you. React naturally — sometimes engaged, sometimes skeptical. After 6 exchanges give feedback.",
@@ -361,8 +362,17 @@ async def conversation(
             f"Respond as the character (1-2 sentences max):"
         )
 
-        res = model.generate_content(prompt)
-        return {"reply": res.text.strip()}
+        import urllib.request
+        import json
+        req_data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode('utf-8')
+        req_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={active_key}"
+        urllib_req = urllib.request.Request(req_url, data=req_data, headers={'Content-Type': 'application/json'})
+        
+        with urllib.request.urlopen(urllib_req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            
+        text = res_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "Let me think about that...")
+        return {"reply": text.strip()}
     except Exception as e:
         logger.error(f"Conversation error: {e}")
         return {"reply": "Let me think about that..."}

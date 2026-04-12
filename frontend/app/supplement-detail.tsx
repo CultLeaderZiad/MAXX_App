@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../src/context/ThemeContext';
 import { FONTS } from '../src/constants/theme';
+import { usePlan } from '../hooks/usePlan';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -19,6 +20,7 @@ export default function SupplementDetail() {
   const supplement = supplementJson ? JSON.parse(supplementJson as string) : null;
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
+  const { canAccess, handleGate } = usePlan();
 
   if (!supplement) return null;
 
@@ -28,10 +30,7 @@ export default function SupplementDetail() {
   };
 
   const planRequired = supplement.required_plan || 'trial';
-  const hasAccess = profile?.plan === 'sigma' || 
-                    (profile?.plan === 'alpha' && ['trial', 'grind', 'alpha'].includes(planRequired)) ||
-                    (profile?.plan === 'grind' && ['trial', 'grind'].includes(planRequired)) ||
-                    (profile?.plan === 'trial' && planRequired === 'trial');
+  const hasAccess = canAccess(planRequired);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
@@ -53,8 +52,19 @@ export default function SupplementDetail() {
             </View>
           </View>
 
-          <View style={[styles.heroImageContainer, { backgroundColor: '#FFF', shadowColor: theme.gold || '#C8A96E' }]}>
-            <Image source={{ uri: supplement.image_url }} style={styles.heroImage} />
+          <View style={[styles.heroImageContainer, { backgroundColor: '#FFF', shadowColor: theme.gold || '#C8A96E', overflow: 'hidden' }]}>
+            {supplement.image_url ? (
+              <Image source={{ uri: supplement.image_url }} style={styles.heroImage} />
+            ) : (
+              <View style={{ flex: 1, backgroundColor: 'rgba(200,169,110,0.1)', width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                <Feather name={
+                  supplement.category.includes('Test') ? 'activity' :
+                  supplement.category.includes('Bone') ? 'hexagon' :
+                  supplement.category.includes('Sleep') ? 'moon' :
+                  supplement.category.includes('Focus') ? 'target' : 'zap'
+                } size={50} color={theme.gold || '#C8A96E'} />
+              </View>
+            )}
           </View>
 
           <Text style={[styles.brandAttribution, { fontFamily: FONTS.regular, color: theme.textMuted }]}>BIO-AUTHENTICATED BY: ALPHA PHARMA</Text>
@@ -150,7 +160,7 @@ export default function SupplementDetail() {
             <View style={[styles.lockOverlay, { backgroundColor: 'rgba(10,10,10,0.95)' }]}>
               <Feather name="lock" size={40} color={theme.gold || '#C8A96E'} />
               <Text style={[styles.lockText, { color: theme.gold || '#C8A96E', fontFamily: FONTS.bold }]}>REQUIRES {planRequired.toUpperCase()} CLEARANCE</Text>
-              <TouchableOpacity onPress={() => router.push('/plans')} style={[styles.upgradeButton, { backgroundColor: theme.gold || '#C8A96E' }]}>
+              <TouchableOpacity onPress={() => handleGate(planRequired)} style={[styles.upgradeButton, { backgroundColor: theme.gold || '#C8A96E' }]}>
                 <Text style={[styles.upgradeButtonText, { fontFamily: FONTS.bold, color: '#000' }]}>UPGRADE PROFILE</Text>
               </TouchableOpacity>
             </View>

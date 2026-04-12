@@ -12,6 +12,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 import { PlanProvider } from '../context/PlanContext';
 import { ThemeProvider as NavigationThemeProvider, DarkTheme } from '@react-navigation/native';
+import { PremiumModal } from '../src/components/PremiumModal';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -143,6 +144,7 @@ export default function RootLayout() {
         <AuthProvider>
           <PlanProvider>
             <RootLayoutNav />
+            <PremiumModal />
           </PlanProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -525,6 +525,20 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Links Section */}
+        <TouchableOpacity
+          onPress={() => router.push("/favorites")}
+          style={[styles.menuRow, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Feather name="bookmark" size={20} color={theme.gold} />
+            <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 14, letterSpacing: 1 }}>
+              WISHLIST & BOOKMARKS
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={theme.textMuted} />
+        </TouchableOpacity>
+
         {/* Badges Section */}
         <View style={styles.badgesWrap}>
           <Text
@@ -704,6 +718,17 @@ const styles = StyleSheet.create({
   planLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 4 },
   planName: { fontSize: 18 },
   upgradeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
+    padding: SPACING.lg,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
 
   badgesWrap: { marginTop: SPACING.xl, paddingHorizontal: SPACING.lg },
   sectionTitle: { fontSize: 12, letterSpacing: 1.2, marginBottom: SPACING.lg },

@@ -9,10 +9,12 @@ import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { usePlan } from '../../hooks/usePlan';
 import { apiCall } from '../../lib/api';
 import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { Card } from '../../src/components/Card';
 import { Badge } from '../../src/components/Badge';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TABS = ['Wisdom', 'Confidence', 'Convo Lab'];
 
@@ -189,7 +191,7 @@ export default function FocusScreen() {
   const { user, profile } = useAuth();
   const params = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState('Wisdom');
-  const userPlan = profile?.plan || 'trial';
+  const { canAccess, handleGate } = usePlan();
 
   useEffect(() => {
     // If we have a specific tab in params, switch to it
@@ -210,10 +212,7 @@ export default function FocusScreen() {
     // but the useEffect dependency on specific params ensures we don't "stick"
   };
 
-  const canAccessPlan = (required: string) => {
-    const order: Record<string, number> = { trial: 0, free_trial: 0, grind: 1, alpha: 2, sigma: 3 };
-    return (order[userPlan] ?? 0) >= (order[required] ?? 0);
-  };
+  // Access logic managed by usePlan hook
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="focus-screen">
@@ -233,8 +232,8 @@ export default function FocusScreen() {
 
       <View style={styles.flex}>
         {activeTab === 'Wisdom' && <WisdomView theme={theme} user={user} />}
-        {activeTab === 'Confidence' && <ConfidenceView theme={theme} user={user} canAccess={canAccessPlan} userPlan={userPlan} />}
-        {activeTab === 'Convo Lab' && <ConvoLabView theme={theme} user={user} canAccess={canAccessPlan} userPlan={userPlan} initialScenarioId={params.scenario} />}
+        {activeTab === 'Confidence' && <ConfidenceView theme={theme} user={user} canAccess={canAccess} handleGate={handleGate} />}
+        {activeTab === 'Convo Lab' && <ConvoLabView theme={theme} user={user} canAccess={canAccess} handleGate={handleGate} initialScenarioId={params.scenario} />}
       </View>
     </SafeAreaView>
   );
@@ -359,7 +358,7 @@ function WisdomView({ theme, user }: any) {
 }
 
 // ─── Confidence View ──────────────────────────────────────────────────────────
-function ConfidenceView({ theme, user, canAccess, userPlan }: any) {
+function ConfidenceView({ theme, user, canAccess, handleGate }: any) {
   const [selectedModule, setSelectedModule] = useState<any>(null);
   const [completing, setCompleting] = useState(false);
 
@@ -389,7 +388,7 @@ function ConfidenceView({ theme, user, canAccess, userPlan }: any) {
             style={[styles.moduleCard, { backgroundColor: theme.bgSurface, borderColor: locked ? theme.border : theme.gold + '44', opacity: locked ? 0.6 : 1 }]}
             onPress={() => {
               if (locked) {
-                Alert.alert('Locked', `Upgrade to ${item.plan.charAt(0).toUpperCase() + item.plan.slice(1)} to unlock this module.`);
+                handleGate(item.plan);
               } else {
                 setSelectedModule(item);
               }
@@ -444,7 +443,7 @@ function ConfidenceView({ theme, user, canAccess, userPlan }: any) {
 }
 
 // ─── Convo Lab View ────────────────────────────────────────────────────────────
-function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: any) {
+function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }: any) {
   const [selectedScenario, setSelectedScenario] = useState<any>(null);
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [inputText, setInputText] = useState('');
@@ -453,16 +452,43 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
   const [showGuide, setShowGuide] = useState<string | null>(null);
   const [scenarioFilter, setScenarioFilter] = useState<string>('all');
   const scrollRef = useRef<ScrollView>(null);
+  const [userApiKey, setUserApiKey] = useState('');
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showApiModal, setShowApiModal] = useState(false);
+  const [pendingScenario, setPendingScenario] = useState<any>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem('convo_api_key').then(val => {
+      if (val) {
+        setUserApiKey(val);
+        setApiKeyInput(val);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (initialScenarioId && !selectedScenario) {
       const found = SCENARIOS.find(s => s.id === initialScenarioId);
       if (found && canAccess(found.plan)) {
-        setSelectedScenario(found);
-        setMessages([]);
+        handleEnterScenario(found);
       }
     }
-  }, [initialScenarioId]);
+  }, [initialScenarioId, userApiKey]);
+
+  const handleEnterScenario = (scenario: any) => {
+    setSelectedScenario(scenario);
+    setMessages([]);
+  };
+
+  const saveApiKey = () => {
+    setUserApiKey(apiKeyInput);
+    AsyncStorage.setItem('convo_api_key', apiKeyInput);
+    setShowApiModal(false);
+    if (pendingScenario) {
+      handleEnterScenario(pendingScenario);
+      setPendingScenario(null);
+    }
+  };
 
   const handleSend = async () => {
     if (!inputText.trim() || sending) return;
@@ -478,6 +504,7 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
         scenario: selectedScenario.id,
         messages: newMessages,
         user_message: userMsg,
+        api_key: userApiKey || undefined,
       });
       setTyping(false);
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply || data.message || 'I see...' }]);
@@ -509,6 +536,9 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
           <Text style={[styles.labTag, { color: theme.gold, fontFamily: FONTS.semiBold }]}>
             AI Scenario: {selectedScenario.title}
           </Text>
+          <TouchableOpacity onPress={() => { setApiKeyInput(userApiKey); setShowApiModal(true); }} style={{ position: 'absolute', right: 16 }}>
+            <Feather name="settings" size={20} color={theme.textMuted} />
+          </TouchableOpacity>
         </View>
         <ScrollView
           ref={scrollRef}
@@ -614,10 +644,12 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
             key={s.id}
             onPress={() => {
               if (locked) {
-                Alert.alert('Locked', `Upgrade to ${s.plan.charAt(0).toUpperCase() + s.plan.slice(1)} to unlock this scenario.`);
+                handleGate(s.plan);
+              } else if (!userApiKey) {
+                setPendingScenario(s);
+                setShowApiModal(true);
               } else {
-                setSelectedScenario(s);
-                setMessages([]);
+                handleEnterScenario(s);
               }
             }}
             activeOpacity={0.8}
@@ -648,6 +680,39 @@ function ConvoLabView({ theme, user, canAccess, userPlan, initialScenarioId }: a
           <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4, fontFamily: FONTS.regular }}>{r.desc}</Text>
         </View>
       ))}
+
+      {/* API Key Modal */}
+      <Modal visible={showApiModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: theme.bgSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 }}>
+            <Text style={{ color: theme.textPrimary, fontFamily: FONTS.cinzelBold, fontSize: 18, marginBottom: 8 }}>
+              Configure AI Engine
+            </Text>
+            <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 20, fontFamily: FONTS.regular, lineHeight: 20 }}>
+              MAXX Convo Lab uses Gemini to simulate conversations. Please enter your Gemini API Key to continue (we do not store this, it is saved locally on your device).
+            </Text>
+            
+            <TextInput
+              style={{ backgroundColor: theme.bgElevated, color: theme.textPrimary, borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: theme.border }}
+              placeholder="AI-xxxxxxxxxxxxxxxxxxx"
+              placeholderTextColor={theme.textMuted}
+              value={apiKeyInput}
+              onChangeText={setApiKeyInput}
+              autoCapitalize="none"
+              secureTextEntry
+            />
+            
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity onPress={() => setShowApiModal(false)} style={{ flex: 1, padding: 14, borderRadius: 10, backgroundColor: theme.bgElevated, alignItems: 'center' }}>
+                <Text style={{ color: theme.textMuted, fontFamily: FONTS.semiBold }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveApiKey} style={{ flex: 2, padding: 14, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center' }}>
+                <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold }}>SAVE & CONTINUE</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <View style={{ height: 80 }} />
     </ScrollView>
