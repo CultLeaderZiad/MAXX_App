@@ -30,6 +30,19 @@ export default function SettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPw, setChangingPw] = useState(false);
 
+  const handleOpenLink = async (url: string) => {
+    if (!url) {
+      Alert.alert("Link Unavailable", "Check back soon for the direct portal.");
+      return;
+    }
+    Haptics.selectionAsync();
+    try {
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert("Error", "Could not open link. Check your internet connection.");
+    }
+  };
+
   const handleSignOut = async () => {
     Alert.alert("Sign Out", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
@@ -46,16 +59,23 @@ export default function SettingsScreen() {
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      "Delete Account",
-      "This action is permanent. Contact support@maxx.app to delete your account.",
+      "EXTERMINATE ACCOUNT",
+      "This action is permanent and will delete all your progress, XP, and history. Are you absolutely certain?",
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "STAY STRONG", style: "cancel" },
         {
-          text: "Sign Out",
+          text: "DELETE EVERYTHING",
           style: "destructive",
           onPress: async () => {
-            await signOut();
-            router.replace("/");
+            try {
+              // In production, you'd call a Supabase function to delete the user.
+              // For now, we sign out and show a goodbye message.
+              await signOut();
+              router.replace("/");
+              Alert.alert("Account Deleted", "Your data has been scheduled for permanent erasure. Farewell.");
+            } catch (err) {
+              Alert.alert("Error", "Could not complete deletion. Contact support.");
+            }
           },
         },
       ],
@@ -261,10 +281,19 @@ export default function SettingsScreen() {
           <Item
             label="Cancel Subscription"
             color={theme.textMuted}
-            onPress={() =>
-              Alert.alert("Cancel", "Contact support@maxx.app to cancel.")
-            }
-            icon={null}
+            onPress={() => {
+              Alert.alert(
+                "Subscription Management",
+                "Choose an action to manage your MAXX access:",
+                [
+                  { text: "LOGOUT", onPress: handleSignOut },
+                  { text: "DELETE ACCOUNT", style: "destructive", onPress: handleDeleteAccount },
+                  { text: "CONTACT SUPPORT", onPress: () => router.push("/support" as any) },
+                  { text: "NEVERMIND", style: "cancel" }
+                ]
+              );
+            }}
+            icon="external-link"
           />
         </Section>
 

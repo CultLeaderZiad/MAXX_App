@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Modal, Alert, Animated, Easing, Share, KeyboardAvoidingView, Platform,
   Image, Linking, Dimensions
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -121,6 +121,8 @@ const SCENARIOS = [
     prompt: 'You are a concerned parent. Your son is telling you he wants to drop out and pursue entrepreneurship. Be worried but not dismissive. After 6 exchanges give feedback on how he communicated conviction and respect.' },
   { id: 'dating_app_openers', title: 'Dating App Texting', difficulty: 'EASY', desc: 'Stand out from 100 other matches.', plan: 'trial', category: 'dating',
     prompt: 'You are a woman on a dating app. You match with lots of guys. This one just messaged you. Be realistic — most openers bore you. Only engage if his message is creative and non-needy. After 6 messages give detailed feedback.' },
+  { id: 'gym_approach', title: 'Gym Approach', difficulty: 'MEDIUM', desc: 'Approach her between sets without Being "That Guy".', plan: 'trial', category: 'dating',
+    prompt: 'You are a girl at the gym wearing headphones. You are focused on your workout but open to being approached IF it is done respectfully and non-creepily. If the guy interrupts a set or stares too long, react coldly. After 6 exchanges give feedback on timing and social awareness.' },
 ];
 
 // ─── Convo Lab Guidelines ─────────────────────────────────────────────────────
@@ -220,7 +222,12 @@ export default function FocusScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} testID="focus-screen">
       <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Focus</Text>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={{ gap: 8 }}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false} 
+        style={styles.tabBar} 
+        contentContainerStyle={{ gap: 8, paddingHorizontal: SPACING.lg, alignItems: 'center' }}
+      >
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab}
@@ -257,17 +264,25 @@ function WisdomView({ theme, user }: any) {
     setLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
-      const [cardRes, mentorRes, recentRes] = await Promise.all([
+      const queries = [
         supabase.from('wisdom_cards').select('*').eq('card_date', today).eq('is_active', true).maybeSingle(),
         supabase.from('mentors').select('*').eq('is_active', true),
         supabase.from('wisdom_cards').select('quote, author, card_date').order('card_date', { ascending: false }).limit(7)
-      ]);
+      ];
+
+      const [cardRes, mentorRes, recentRes] = await Promise.all(queries);
 
       if (cardRes.data) {
         setCard(cardRes.data);
       } else {
-        // Fallback to most recent
-        const { data: fallback } = await supabase.from('wisdom_cards').select('*').order('card_date', { ascending: false }).limit(1).maybeSingle();
+        // Fallback to most recent card before or on today
+        const { data: fallback } = await supabase
+          .from('wisdom_cards')
+          .select('*')
+          .lte('card_date', today)
+          .order('card_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
         setCard(fallback);
       }
       setMentors(mentorRes.data || []);
@@ -531,67 +546,80 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
 
   if (selectedScenario) {
     return (
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.labContainer} keyboardVerticalOffset={90}>
-        <View style={[styles.labHeader, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-          <TouchableOpacity onPress={() => { setSelectedScenario(null); setMessages([]); }} style={{ position: 'absolute', left: 16 }}>
-            <Feather name="arrow-left" size={20} color={theme.textSecondary} />
-          </TouchableOpacity>
-          <Text style={[styles.labTag, { color: theme.gold, fontFamily: FONTS.semiBold }]}>
-            AI Scenario: {selectedScenario.title}
-          </Text>
-          <TouchableOpacity onPress={() => { setApiKeyInput(userApiKey); setShowApiModal(true); }} style={{ position: 'absolute', right: 16 }}>
-            <Feather name="settings" size={20} color={theme.textMuted} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.chatScroll}
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+      <View style={styles.labContainer}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={styles.flex}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
         >
-          {messages.length === 0 && (
-            <View style={[styles.msgBox, { backgroundColor: theme.bgElevated, maxWidth: '85%' }]}>
-              <Text style={[styles.msgText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>
-                {selectedScenario.id === 'first_date' ? "Hey, I didn't expect to be this nervous on a first date... What made you choose this place?" :
-                 selectedScenario.id === 'cold_approach' ? "Oh... um, hi? Can I help you?" :
-                 selectedScenario.id === 'salary_negotiation' ? "Thanks for coming in. So, what were you expecting in terms of compensation?" :
-                 "Let's begin the scenario. Go ahead."}
+          <View style={[styles.labHeader, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+            <TouchableOpacity onPress={() => { setSelectedScenario(null); setMessages([]); }} style={{ padding: 10 }}>
+              <Feather name="arrow-left" size={20} color={theme.textSecondary} />
+            </TouchableOpacity>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={[styles.labTag, { color: theme.gold, fontFamily: FONTS.semiBold }]} numberOfLines={1}>
+                {selectedScenario.title}
               </Text>
             </View>
-          )}
-          {messages.map((msg, i) => (
-            <View key={i} style={[styles.msgRow, { justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }]}>
-              <View style={[styles.msgBox, {
-                backgroundColor: msg.role === 'user' ? theme.gold : '#1A1A1A',
-                borderBottomRightRadius: msg.role === 'user' ? 4 : 14,
-                borderBottomLeftRadius: msg.role === 'user' ? 14 : 4,
-                maxWidth: '85%',
-              }]}>
-                <Text style={[styles.msgText, { color: msg.role === 'user' ? '#0A0A0A' : theme.textPrimary, fontFamily: FONTS.regular }]}>{msg.content}</Text>
+            <TouchableOpacity onPress={() => { setApiKeyInput(userApiKey); setShowApiModal(true); }} style={{ padding: 10 }}>
+              <Feather name="settings" size={20} color={theme.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            ref={scrollRef}
+            style={styles.flex}
+            contentContainerStyle={[styles.chatScroll, { paddingBottom: 100 }]}
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          >
+            {messages.length === 0 && (
+              <View style={[styles.msgBox, { backgroundColor: theme.bgElevated, maxWidth: '85%', alignSelf: 'flex-start', marginBottom: 16 }]}>
+                <Text style={[styles.msgText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>
+                  {selectedScenario.id === 'first_date' ? "Hey, I didn't expect to be this nervous on a first date... What made you choose this place?" :
+                   selectedScenario.id === 'cold_approach' ? "Oh... um, hi? Can I help you?" :
+                   selectedScenario.id === 'salary_negotiation' ? "Thanks for coming in. So, what were you expecting in terms of compensation?" :
+                   "Let's begin the scenario. Go ahead."}
+                </Text>
               </View>
-            </View>
-          ))}
-          {typing && (
-            <View style={[styles.msgBox, { backgroundColor: '#1A1A1A', maxWidth: 80 }]}>
-              <Text style={{ color: theme.textMuted, fontSize: 18, letterSpacing: 4 }}>···</Text>
-            </View>
-          )}
-        </ScrollView>
-        <View style={styles.chatInputRow}>
-          <TextInput
-            style={[styles.chatInput, { backgroundColor: theme.bgSurface, borderColor: theme.border, color: theme.textPrimary, fontFamily: FONTS.regular }]}
-            placeholder="Type a message..."
-            placeholderTextColor={theme.textMuted}
-            value={inputText}
-            onChangeText={setInputText}
-            returnKeyType="send"
-            onSubmitEditing={handleSend}
-            editable={!sending}
-          />
-          <TouchableOpacity onPress={handleSend} style={[styles.sendCircle, { backgroundColor: theme.gold }]} disabled={sending}>
-            <Feather name="send" size={16} color="#0A0A0A" />
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+            )}
+            {messages.map((msg, i) => (
+              <View key={i} style={[styles.msgRow, { justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }]}>
+                <View style={[styles.msgBox, {
+                  backgroundColor: msg.role === 'user' ? theme.gold : theme.bgElevated,
+                  borderBottomRightRadius: msg.role === 'user' ? 4 : 14,
+                  borderBottomLeftRadius: msg.role === 'user' ? 14 : 4,
+                  borderWidth: 1,
+                  borderColor: msg.role === 'user' ? theme.gold : theme.border,
+                  maxWidth: '85%',
+                }]}>
+                  <Text style={[styles.msgText, { color: msg.role === 'user' ? '#0A0A0A' : theme.textPrimary, fontFamily: FONTS.regular }]}>{msg.content}</Text>
+                </View>
+              </View>
+            ))}
+            {typing && (
+              <View style={[styles.msgBox, { backgroundColor: theme.bgElevated, maxWidth: 80, alignSelf: 'flex-start' }]}>
+                <ActivityIndicator color={theme.gold} size="small" />
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={[styles.chatInputRow, { backgroundColor: theme.bgSurface, borderTopWidth: 1, borderColor: theme.border, paddingBottom: Platform.OS === 'ios' ? 20 : 10 }]}>
+            <TextInput
+              style={[styles.chatInput, { backgroundColor: theme.bgElevated, borderColor: theme.border, color: theme.textPrimary, fontFamily: FONTS.regular }]}
+              placeholder="Type a message..."
+              placeholderTextColor={theme.textMuted}
+              value={inputText}
+              onChangeText={setInputText}
+              returnKeyType="send"
+              onSubmitEditing={handleSend}
+              editable={!sending}
+            />
+            <TouchableOpacity onPress={handleSend} style={[styles.sendCircle, { backgroundColor: theme.gold }]} disabled={sending || !inputText.trim()}>
+              <Feather name="send" size={16} color="#0A0A0A" />
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
     );
   }
 
@@ -724,38 +752,39 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
 
 // ─── Library View ─────────────────────────────────────────────────────────────
 const CHANNEL_COLORS: Record<string, string> = {
-  'Sneako': '#E67E22',
-  'Andrew Tate': '#C0392B',
-  'Chris Bumstead': '#27AE60',
-  'Myron Gaines': '#8E44AD',
-  'Fresh & Fit': '#8E44AD',
+  'Sneako': '#E74C3C',
+  'Shneako': '#C0392B',
+  'Myron Gaines': '#2C3E50',
+  'Joe Rogan': '#E67E22',
+  'David Goggins': '#7F8C8D',
+  'Jack Neel': '#8E44AD',
+  'Mike Thurston': '#27AE60',
+  'Andrew Tate': '#F1C40F',
   'Andrew Huberman': '#2980B9',
-  'David Goggins': '#E74C3C',
   'Ryan Holiday': '#16A085',
-  'Athlean-X': '#D35400',
+  'Athlean-X': '#E67E22',
   'Jeff Nippard': '#9B59B6',
-  'Calisthenic Movement': '#1ABC9C',
-  'Dr Mike Mew': '#3498DB',
-  'Becker': '#F39C12',
-  'Better Ideas': '#2ECC71',
-  'Charisma on Command': '#E91E63',
 };
 
 const CHANNEL_GROUPS: { name: string; platform: string; creators: string[] }[] = [
-  { name: 'Sneako', platform: 'YouTube + Rumble', creators: ['Sneako'] },
+  { name: 'Sneako', platform: 'YouTube', creators: ['Sneako'] },
+  { name: 'Shneako', platform: 'YouTube', creators: ['Shneako'] },
+  { name: 'Myron Gaines', platform: 'YouTube', creators: ['Myron Gaines'] },
+  { name: 'Joe Rogan', platform: 'YouTube', creators: ['Joe Rogan'] },
+  { name: 'David Goggins', platform: 'YouTube', creators: ['David Goggins'] },
+  { name: 'Jack Neel', platform: 'YouTube', creators: ['Jack Neel'] },
+  { name: 'Mike Thurston', platform: 'YouTube', creators: ['Mike Thurston'] },
   { name: 'Andrew Tate', platform: 'Rumble', creators: ['Andrew Tate'] },
-  { name: 'Chris Bumstead (CBum)', platform: 'YouTube', creators: ['Chris Bumstead'] },
-  { name: 'Myron Gaines', platform: 'YouTube', creators: ['Myron Gaines', 'Fresh & Fit'] },
-  { name: 'Self Improvement Essentials', platform: 'YouTube', creators: ['Andrew Huberman', 'David Goggins', 'Ryan Holiday', 'Better Ideas'] },
-  { name: 'Fitness & Body', platform: 'YouTube', creators: ['Athlean-X', 'Jeff Nippard', 'Calisthenic Movement'] },
-  { name: 'Looksmaxx', platform: 'YouTube', creators: ['Dr Mike Mew', 'Becker'] },
-  { name: 'Social Skills', platform: 'YouTube', creators: ['Charisma on Command'] },
+  { name: 'Self Improvement', platform: 'YouTube', creators: ['Andrew Huberman', 'Ryan Holiday', 'Better Ideas'] },
+  { name: 'Fitness', platform: 'YouTube', creators: ['Athlean-X', 'Jeff Nippard', 'Chris Bumstead'] },
 ];
 
 function LibraryView({ theme, user }: any) {
+  const router = useRouter();
   const [libTab, setLibTab] = useState<'videos' | 'books'>('videos');
   const [videos, setVideos] = useState<any[]>([]);
   const [books, setBooks] = useState<any[]>([]);
+  const [creators, setCreators] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [videoFilter, setVideoFilter] = useState('all');
   const [bookFilter, setBookFilter] = useState('all');
@@ -768,13 +797,15 @@ function LibraryView({ theme, user }: any) {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [vRes, bRes, fRes] = await Promise.all([
+      const [vRes, bRes, fRes, cRes] = await Promise.all([
         supabase.from('library_videos').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('library_books').select('*').eq('is_active', true).order('sort_order'),
         user ? supabase.from('favorites').select('item_id').eq('user_id', user.id) : Promise.resolve({ data: [] }),
+        supabase.from('library_creators').select('*'),
       ]);
       setVideos(vRes.data || []);
       setBooks(bRes.data || []);
+      setCreators(cRes.data || []);
       const ids = new Set<string>((fRes.data || []).map((f: any) => f.item_id));
       setSavedIds(ids);
     } catch (e) {
@@ -883,15 +914,20 @@ function LibraryView({ theme, user }: any) {
           {/* Channel Sections */}
           {channelSections.map((ch, ci) => {
             const channelCol = getChannelColor(ch.name);
+            const creator = creators.find(c => c.name === ch.name);
             return (
               <View key={ci} style={{ marginBottom: SPACING.xl }}>
                 {/* Channel Header */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                  <View style={[styles.channelCircle, { backgroundColor: channelCol + '22', borderColor: channelCol + '44' }]}>
-                    <Text style={{ color: channelCol, fontFamily: FONTS.bold, fontSize: 14 }}>{getInitials(ch.name)}</Text>
+                  <View style={[styles.channelCircle, { backgroundColor: channelCol + '22', borderColor: channelCol + '44', overflow: 'hidden' }]}>
+                    {creator?.profile_image_url ? (
+                      <Image source={{ uri: creator.profile_image_url }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Text style={{ color: channelCol, fontFamily: FONTS.bold, fontSize: 14 }}>{getInitials(ch.name)}</Text>
+                    )}
                   </View>
                   <View>
-                    <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 14 }}>{ch.name}</Text>
+                    <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 13 }}>{ch.name}</Text>
                     <Text style={{ color: theme.textMuted, fontSize: 10, fontFamily: FONTS.regular }}>{ch.platform}</Text>
                   </View>
                 </View>
@@ -906,15 +942,14 @@ function LibraryView({ theme, user }: any) {
                         : undefined;
                       const isSaved = savedIds.has(v.id);
                       return (
-                        <View key={v.id} style={{ width: 145 }}>
+                        <View key={v.id} style={{ width: 110 }}>
                           <TouchableOpacity
                             activeOpacity={0.85}
                             onPress={() => {
-                              if (isRealYT) {
-                                Linking.openURL(`https://www.youtube.com/watch?v=${v.youtube_id}`);
-                              } else {
-                                Alert.alert(v.title, v.description || 'No additional info.');
-                              }
+                              router.push({
+                                pathname: "/library-video",
+                                params: { id: v.id }
+                              });
                             }}
                             style={[styles.libThumbWrap, { backgroundColor: channelCol + '15' }]}
                           >
@@ -932,7 +967,7 @@ function LibraryView({ theme, user }: any) {
                               </View>
                             </View>
                           </TouchableOpacity>
-                          <Text style={{ color: theme.textMuted, fontSize: 10, fontFamily: FONTS.regular, marginTop: 6, lineHeight: 14 }} numberOfLines={2}>
+                          <Text style={{ color: theme.textMuted, fontSize: 9, fontFamily: FONTS.regular, marginTop: 6, lineHeight: 12 }} numberOfLines={2}>
                             {v.title}
                           </Text>
                           {/* Share + Save pills */}
@@ -987,16 +1022,31 @@ function LibraryView({ theme, user }: any) {
             const bookColor = CHANNEL_COLORS[book.author] || '#C8A96E';
             const isSaved = savedIds.has(book.id);
             return (
-              <View key={book.id} style={[styles.libBookCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-                {/* Mini cover rectangle */}
-                <View style={[styles.libBookCover, { backgroundColor: bookColor + '33' }]}>
-                  <Text style={{ color: bookColor, fontFamily: FONTS.bold, fontSize: 10, textAlign: 'center', lineHeight: 14 }} numberOfLines={3}>
-                    {book.title}
-                  </Text>
+              <TouchableOpacity
+                key={book.id}
+                activeOpacity={0.9}
+                onPress={() => router.push({ pathname: "/library-book", params: { id: book.id } })}
+                style={[styles.libBookCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}
+              >
+                {/* Book Cover */}
+                <View style={[styles.libBookCover, { backgroundColor: bookColor + '22', borderColor: bookColor + '44', borderWidth: 1, overflow: 'hidden' }]}>
+                  {book.cover_url ? (
+                    <Image source={{ uri: book.cover_url }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
+                  ) : (
+                    <Text style={{ color: bookColor, fontFamily: FONTS.bold, fontSize: 9, textAlign: 'center', padding: 4 }}>
+                      {book.title}
+                    </Text>
+                  )}
                 </View>
                 <View style={{ flex: 1, paddingLeft: 14 }}>
-                  <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 15 }} numberOfLines={1}>{book.title}</Text>
-                  <Text style={{ color: theme.gold, fontSize: 12, fontFamily: FONTS.medium, marginTop: 2 }}>{book.author}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 15 }} numberOfLines={1}>{book.title}</Text>
+                      <Text style={{ color: theme.gold, fontSize: 12, fontFamily: FONTS.medium, marginTop: 2 }}>{book.author}</Text>
+                    </View>
+                    <Badge label={book.category?.toUpperCase() || 'FINANCE'} />
+                  </View>
+                  
                   {book.key_lessons && book.key_lessons.length > 0 && (
                     <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 6, fontFamily: FONTS.regular, lineHeight: 16 }} numberOfLines={2}>
                       {book.key_lessons[0]}
@@ -1013,7 +1063,7 @@ function LibraryView({ theme, user }: any) {
                       </TouchableOpacity>
                     ) : null}
                     <TouchableOpacity
-                      onPress={() => handleSave('book', book.id, book.title, undefined, book.author)}
+                      onPress={() => handleSave('book', book.id, book.title, book.cover_url, book.author)}
                       style={[styles.libBookBtn, { borderColor: isSaved ? theme.gold : theme.border }]}
                     >
                       <Feather name="bookmark" size={12} color={isSaved ? theme.gold : theme.textMuted} />
@@ -1021,7 +1071,7 @@ function LibraryView({ theme, user }: any) {
                     </TouchableOpacity>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
 
@@ -1042,13 +1092,13 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
   title: { fontSize: 28, paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
-  tabBar: { flexDirection: 'row', paddingHorizontal: SPACING.lg, marginTop: SPACING.md },
+  tabBar: { maxHeight: 48, minHeight: 48, marginTop: SPACING.md, overflow: 'hidden' },
 
   // Library
   libInnerTabs: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, overflow: 'hidden', marginBottom: SPACING.md },
   libInnerTab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  channelCircle: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  libThumbWrap: { width: 145, height: 82, borderRadius: 10, overflow: 'hidden', position: 'relative' },
+  channelCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  libThumbWrap: { width: 110, height: 62, borderRadius: 8, overflow: 'hidden', position: 'relative' },
   libThumb: { width: '100%', height: '100%' },
   libPlayOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
   libPlayCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', opacity: 0.9 },

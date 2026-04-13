@@ -105,11 +105,15 @@ export default function LibraryBookScreen() {
   };
 
   const handleOpenLink = async (url: string) => {
-    if (!url) return;
+    if (!url) {
+      Alert.alert("Link Unavailable", "Check back soon for the direct portal.");
+      return;
+    }
     Haptics.selectionAsync();
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
+    try {
       await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert("Error", "Could not open link. Check your device settings.");
     }
   };
 

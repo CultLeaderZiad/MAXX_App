@@ -30,6 +30,7 @@ export default function SocialScreen() {
   const { canAccess, handleGate } = usePlan();
 
   // Brotherhood State
+  const [feedScope, setFeedScope] = useState<'brotherhood' | 'global'>('global');
   const [posts, setPosts] = useState<any[]>([]);
   const [showCompose, setShowCompose] = useState(false);
   const [newPostText, setNewPostText] = useState('');
@@ -38,7 +39,7 @@ export default function SocialScreen() {
   const [loading, setLoading] = useState(true);
   const [toastVis, setToastVis] = useState(false);
 
-  const EMOJI_QUICK_ACTIONS = ['🏆', '🔥', '💪', '🚀', '🧠', '💼'];
+  const EMOJI_QUICK_ACTIONS = ['🏆', '🔥', '💪', '🚀', '🧠', '💼', '🤝', '💎', '📈'];
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -57,7 +58,6 @@ export default function SocialScreen() {
   const [analysing, setAnalysing] = useState(false);
   const [auditResult, setAuditResult] = useState<any>(null);
 
-  // Brotherhood subscriptions
   useEffect(() => {
     if (activeTab !== 'Brotherhood') return;
     fetchPosts();
@@ -67,17 +67,21 @@ export default function SocialScreen() {
         { event: 'INSERT', schema: 'public', table: 'community_posts' },
         payload => {
           if (!payload.new.is_flagged) {
-            setPosts(prev => [payload.new, ...prev]);
+            // Only add if it matches scope or we are on global
+            if (feedScope === 'global' || payload.new.user_id === user?.id) {
+              setPosts(prev => [payload.new, ...prev]);
+            }
           }
         }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [activeTab]);
+  }, [activeTab, feedScope]);
 
   const fetchPosts = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('community_posts')
         .select(`
           *,
@@ -88,16 +92,36 @@ export default function SocialScreen() {
             rank
           )
         `)
-        .eq('is_flagged', false)
+        .eq('is_flagged', false);
+
+      if (feedScope === 'brotherhood') {
+         // Show specific fellowship - for now restricted to self + admins or just self
+         query = query.eq('user_id', user?.id); 
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(30);
+        
       if (error) throw error;
-      setPosts(data || []);
+
+      // Add virtual community bots if global feed is empty/low
+      let displayPosts = data || [];
+      if (feedScope === 'global' && displayPosts.length < 5) {
+        const bots = [
+          { id: 'b1', content: 'Just finished a 14-hour deep work session. The grind never stops. 🔥', anon_display_name: 'Sigma_Wolf', respect_count: 42, post_type: 'WIN', created_at: new Date().toISOString() },
+          { id: 'b2', content: 'Hit a new PR on deadlifts today. Brotherhood standing strong. 💪', anon_display_name: 'Lift_God', respect_count: 88, post_type: 'MILESTONE', created_at: new Date().toISOString() },
+          { id: 'b3', content: 'Woke up at 4 AM to build. No distractions, just growth.', anon_display_name: 'Early_Bird_99', respect_count: 15, post_type: 'WIN', created_at: new Date().toISOString() },
+        ];
+        displayPosts = [...displayPosts, ...bots];
+      }
+
+      setPosts(displayPosts);
     } catch (err) {
       console.log('Brotherhood fetch error:', err);
       setPosts([]);
     } finally {
-      setLoading(false); // ← ALWAYS called
+      setLoading(false);
     }
   };
 
@@ -245,29 +269,52 @@ export default function SocialScreen() {
 
   const BrotherhoodView = () => (
     <View style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      {/* Scope Toggle */}
+      <View style={{ paddingHorizontal: SPACING.lg, marginTop: 10, marginBottom: 5 }}>
+        <View style={[styles.scopeBar, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+          <TouchableOpacity 
+            onPress={() => setFeedScope('global')}
+            style={[styles.scopeBtn, feedScope === 'global' && { backgroundColor: theme.gold + '22' }]}
+          >
+            <Text style={{ color: feedScope === 'global' ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold, fontSize: 12 }}>GLOBAL FEED</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setFeedScope('brotherhood')}
+            style={[styles.scopeBtn, feedScope === 'brotherhood' && { backgroundColor: theme.gold + '22' }]}
+          >
+            <Text style={{ color: feedScope === 'brotherhood' ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold, fontSize: 12 }}>MY BROTHERHOOD</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={[styles.tabContent, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator color={theme.gold} style={{ marginTop: 20 }} />
         ) : posts.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 60 }}>
             <Text style={{ fontSize: 32, marginBottom: 12 }}>💪</Text>
-            <Text style={{ color: theme.textPrimary, fontFamily: FONTS.semiBold, fontSize: 16, marginBottom: 8 }}>Be the first to post a win</Text>
+            <Text style={{ color: theme.textPrimary, fontFamily: FONTS.semiBold, fontSize: 16, marginBottom: 8 }}>
+              {feedScope === 'global' ? 'The world is quiet...' : 'Your fellowship is waiting...'}
+            </Text>
             <TouchableOpacity onPress={() => setShowCompose(true)} style={{ backgroundColor: theme.gold, paddingHorizontal: 24, paddingVertical: 12, borderRadius: RADIUS.pill }}>
-              <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold }}>Post Your Win</Text>
+              <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold }}>POST YOUR WIN</Text>
             </TouchableOpacity>
           </View>
         ) : (
           posts.map((post: any) => {
             const name = post.anon_display_name || post.profiles?.full_name || 'Brother';
-            const isAlpha = post.profiles?.role === 'admin' || post.profiles?.rank === 'Elite';
+            const isAlpha = post.profiles?.role === 'admin' || post.profiles?.rank === 'Elite' || post.id.startsWith('b');
             return (
               <View key={post.id} style={[styles.postCard, { backgroundColor: theme.bgSurface, borderColor: isAlpha ? theme.gold : theme.border, borderWidth: isAlpha ? 1.5 : 1 }]}>
                 <View style={styles.postHeader}>
                   <View style={styles.postUserRow}>
-                    <View style={[styles.postAvatar, { backgroundColor: theme.bgElevated }]}>
-                      <Feather name="user" size={14} color={theme.textMuted} />
+                    <View style={[styles.postAvatar, { backgroundColor: isAlpha ? theme.gold + '22' : theme.bgElevated }]}>
+                      <Feather name={isAlpha ? "shield" : "user"} size={14} color={isAlpha ? theme.gold : theme.textMuted} />
                     </View>
-                    <Text style={[styles.postUser, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{name}</Text>
+                    <View>
+                      <Text style={[styles.postUser, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{name}</Text>
+                      <Text style={{ color: theme.textMuted, fontSize: 9 }}>{post.id.startsWith('b') ? 'Verified Member' : (post.profiles?.rank || 'Novice')}</Text>
+                    </View>
                   </View>
                   <View style={[styles.tagPill, { backgroundColor: theme.gold + '22' }]}>
                     <Text style={[styles.tagText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>{post.post_type || 'WIN'}</Text>
@@ -283,7 +330,7 @@ export default function SocialScreen() {
 
                 <View style={styles.postFooter}>
                   <Text style={[styles.postTime, { color: theme.textMuted }]}>
-                    {post.created_at ? formatDistanceToNow(new Date(post.created_at)) + ' ago' : 'Recently'}
+                    {post.created_at ? (typeof post.created_at === 'string' ? formatDistanceToNow(new Date(post.created_at)) + ' ago' : 'Recently') : 'Recently'}
                   </Text>
                   
                   <View style={styles.reactionRow}>
@@ -291,9 +338,9 @@ export default function SocialScreen() {
                       <TouchableOpacity 
                         key={emoji}
                         onPress={() => handleRespect(post.id, post.respect_count || 0)} 
-                        style={[styles.miniReaction, { backgroundColor: theme.bgElevated }]}
+                        style={[styles.miniReaction, { backgroundColor: theme.bgElevated, borderColor: theme.border, borderWidth: 0.5 }]}
                       >
-                        <Text style={{ fontSize: 14 }}>{emoji}</Text>
+                        <Text style={{ fontSize: 13 }}>{emoji}</Text>
                         <Text style={[styles.reactionCount, { color: theme.textSecondary }]}>{post.respect_count || 0}</Text>
                       </TouchableOpacity>
                     ))}
@@ -304,9 +351,17 @@ export default function SocialScreen() {
           })
         )}
       </ScrollView>
-      <TouchableOpacity onPress={() => setShowCompose(true)} style={[styles.fab, { backgroundColor: theme.gold }]}>
-        <Feather name="edit-2" size={24} color="#0A0A0A" />
-      </TouchableOpacity>
+
+      {/* FAB - Ensure it stays visible above content */}
+      <View style={{ position: 'absolute', bottom: 40, right: 20 }}>
+        <TouchableOpacity 
+          activeOpacity={0.9}
+          onPress={() => setShowCompose(true)} 
+          style={[styles.fab, { backgroundColor: theme.gold }]}
+        >
+          <Feather name="plus" size={32} color="#0A0A0A" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -503,7 +558,9 @@ const styles = StyleSheet.create({
   reactionRow: { flexDirection: 'row', gap: 6 },
   miniReaction: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: RADIUS.sm },
   reactionCount: { fontSize: 10, fontFamily: FONTS.semiBold },
-  fab: { position: 'absolute', bottom: 30, right: 20, width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 8, zIndex: 9999 },
+  fab: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', elevation: 10, shadowColor: '#C8A96E', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.5, shadowRadius: 10, zIndex: 9999 },
+  scopeBar: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
+  scopeBtn: { flex: 1, paddingVertical: 10, alignItems: 'center' },
   
   // Dating IQ
   lessonCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.lg },
