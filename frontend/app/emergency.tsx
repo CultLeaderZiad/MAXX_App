@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "../src/context/ThemeContext";
 import { FONTS, SPACING } from "../src/constants/theme";
@@ -272,7 +273,7 @@ export default function EmergencyScreen() {
             <Button
               title="I Survived (Close)"
               disabled={!anyChecked}
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
               testID="emergency-close-btn"
             />
             <Text

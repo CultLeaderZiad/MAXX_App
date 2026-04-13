@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { WebView } from "react-native-webview";
@@ -322,7 +323,7 @@ export default function ExerciseScreen() {
       <XPToast amount={xpReward} visible={showXP} onDone={() => setShowXP(false)} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => safeBack()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.gold} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
@@ -361,9 +362,13 @@ export default function ExerciseScreen() {
                 domStorageEnabled
                 scrollEnabled={false}
                 onLoad={() => setWebViewLoading(false)}
-                userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+                userAgent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                 source={{
-                    uri: `https://www.youtube.com/embed/${videoData.videoId}?rel=0&autoplay=1&showinfo=0&controls=1&modestbranding=1&playsinline=1&origin=${Platform.OS === 'ios' ? 'http://localhost' : 'http://localhost:19006'}`
+                    uri: `https://www.youtube.com/embed/${videoData.videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&origin=https://www.youtube.com`,
+                    headers: {
+                        'Referer': 'https://www.youtube.com',
+                        'Origin': 'https://www.youtube.com'
+                    }
                 }}
                 style={{ flex: 1, backgroundColor: '#000' }}
               />
@@ -449,7 +454,7 @@ export default function ExerciseScreen() {
                 <Text style={[styles.doneInfo, { color: theme.textMuted }]}>
                   Vector engagement confirmed. +{xpReward} XP synced to your profile.
                 </Text>
-                <Button title="COMPLETE SESSION" onPress={() => router.back()} style={{ width: "100%", marginTop: 40 }} />
+                <Button title="COMPLETE SESSION" onPress={() => safeBack()} style={{ width: "100%", marginTop: 40 }} />
               </View>
             ) : (
               <>

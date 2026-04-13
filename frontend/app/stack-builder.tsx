@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Animated, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { safeBack } from '../lib/safeBack';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
@@ -101,7 +102,7 @@ export default function StackBuilder() {
       if (error) throw error;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("protocol Encrypted", "Biological stack saved to your central nervous system (Profile).");
-      router.back();
+      safeBack();
     } catch (err) {
       Alert.alert("Error", "Failed to save protocol. Re-calibrate scanner.");
     }
@@ -110,7 +111,7 @@ export default function StackBuilder() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => safeBack()} style={styles.backButton}>
           <Feather name="chevron-left" size={24} color={theme.gold || '#C8A96E'} />
           <Text style={[styles.backText, { color: theme.textMuted, fontFamily: FONTS.semiBold }]}>BACK TO LIBRARY</Text>
         </TouchableOpacity>

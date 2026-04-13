@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Modal, Alert, Animated, Easing, Share, KeyboardAvoidingView, Platform,
@@ -16,6 +16,7 @@ import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { Card } from '../../src/components/Card';
 import { Badge } from '../../src/components/Badge';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 
 const TABS = ['Wisdom', 'Confidence', 'Convo Lab', 'Library'];
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -121,7 +122,7 @@ const SCENARIOS = [
     prompt: 'You are a concerned parent. Your son is telling you he wants to drop out and pursue entrepreneurship. Be worried but not dismissive. After 6 exchanges give feedback on how he communicated conviction and respect.' },
   { id: 'dating_app_openers', title: 'Dating App Texting', difficulty: 'EASY', desc: 'Stand out from 100 other matches.', plan: 'trial', category: 'dating',
     prompt: 'You are a woman on a dating app. You match with lots of guys. This one just messaged you. Be realistic — most openers bore you. Only engage if his message is creative and non-needy. After 6 messages give detailed feedback.' },
-  { id: 'gym_approach', title: 'Gym Approach', difficulty: 'MEDIUM', desc: 'Approach her between sets without Being "That Guy".', plan: 'trial', category: 'dating',
+  { id: 'gym_approach_v2', title: 'Gym Approach (Advanced)', difficulty: 'MEDIUM', desc: 'Approach her between sets without Being "That Guy".', plan: 'trial', category: 'dating',
     prompt: 'You are a girl at the gym wearing headphones. You are focused on your workout but open to being approached IF it is done respectfully and non-creepily. If the guy interrupts a set or stares too long, react coldly. After 6 exchanges give feedback on timing and social awareness.' },
 ];
 
@@ -257,20 +258,33 @@ function WisdomView({ theme, user }: any) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchData();
+    let active = true;
+    const timeout = setTimeout(() => {
+      if (active && loading) setLoading(false);
+    }, 6000);
+
+    fetchData().then(() => {
+      if (active) clearTimeout(timeout);
+    });
+
+    return () => { active = false; clearTimeout(timeout); };
   }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
-      const queries = [
+      
+      // Parallel fetch but with explicit defaults if one fails
+      const results = await Promise.allSettled([
         supabase.from('wisdom_cards').select('*').eq('card_date', today).eq('is_active', true).maybeSingle(),
         supabase.from('mentors').select('*').eq('is_active', true),
         supabase.from('wisdom_cards').select('quote, author, card_date').order('card_date', { ascending: false }).limit(7)
-      ];
+      ]);
 
-      const [cardRes, mentorRes, recentRes] = await Promise.all(queries);
+      const cardRes = results[0].status === 'fulfilled' ? results[0].value : { data: null };
+      const mentorRes = results[1].status === 'fulfilled' ? results[1].value : { data: [] };
+      const recentRes = results[2].status === 'fulfilled' ? results[2].value : { data: [] };
 
       if (cardRes.data) {
         setCard(cardRes.data);
@@ -364,7 +378,7 @@ function WisdomView({ theme, user }: any) {
         <>
           <Text style={[styles.sectionTitle, { color: theme.textMuted, marginTop: SPACING.lg }]}>RECENT DROPS</Text>
           {recentCards.slice(1).map((c: any, i: number) => (
-            <View key={i} style={[styles.quoteSmall, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+            <View key={`wisdom_${c.card_date || i}`} style={[styles.quoteSmall, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
               <Text style={[styles.quoteTextSmall, { color: theme.textSecondary, fontFamily: FONTS.semiBold }]}>"{c.quote}"</Text>
               <Text style={[styles.authorSmall, { color: theme.textMuted, fontFamily: FONTS.regular }]}>— {c.author}</Text>
             </View>
@@ -463,7 +477,7 @@ function ConfidenceView({ theme, user, canAccess, handleGate }: any) {
 // ─── Convo Lab View ────────────────────────────────────────────────────────────
 function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }: any) {
   const [selectedScenario, setSelectedScenario] = useState<any>(null);
-  const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [messages, setMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [typing, setTyping] = useState(false);
@@ -474,9 +488,13 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiModal, setShowApiModal] = useState(false);
   const [pendingScenario, setPendingScenario] = useState<any>(null);
+  const msgCounter = useRef(0);
+
+  // ─── Tier Gate: Only Alpha / Sigma can access Convo Lab ──────────
+  const convoLabUnlocked = canAccess('convo_lab');
 
   useEffect(() => {
-    AsyncStorage.getItem('convo_api_key').then(val => {
+    AsyncStorage.getItem('maxx_convo_api_key').then(val => {
       if (val) {
         setUserApiKey(val);
         setApiKeyInput(val);
@@ -485,7 +503,7 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
   }, []);
 
   useEffect(() => {
-    if (initialScenarioId && !selectedScenario) {
+    if (initialScenarioId && !selectedScenario && convoLabUnlocked) {
       const found = SCENARIOS.find(s => s.id === initialScenarioId);
       if (found && canAccess(found.plan)) {
         handleEnterScenario(found);
@@ -493,14 +511,22 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
     }
   }, [initialScenarioId, userApiKey]);
 
+  const nextMsgId = useCallback(() => {
+    msgCounter.current += 1;
+    return `msg_${Date.now()}_${msgCounter.current}`;
+  }, []);
+
   const handleEnterScenario = (scenario: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedScenario(scenario);
     setMessages([]);
+    msgCounter.current = 0;
   };
 
   const saveApiKey = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setUserApiKey(apiKeyInput);
-    AsyncStorage.setItem('convo_api_key', apiKeyInput);
+    AsyncStorage.setItem('maxx_convo_api_key', apiKeyInput);
     setShowApiModal(false);
     if (pendingScenario) {
       handleEnterScenario(pendingScenario);
@@ -510,9 +536,11 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
 
   const handleSend = async () => {
     if (!inputText.trim() || sending) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const userMsg = inputText.trim();
     setInputText('');
-    const newMessages = [...messages, { role: 'user', content: userMsg }];
+    const userMsgObj = { id: nextMsgId(), role: 'user', content: userMsg };
+    const newMessages = [...messages, userMsgObj];
     setMessages(newMessages);
     setSending(true);
     setTyping(true);
@@ -520,22 +548,21 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
     try {
       const data = await apiCall('/api/conversation', 'POST', {
         scenario: selectedScenario.id,
-        messages: newMessages,
+        messages: newMessages.map(m => ({ role: m.role, content: m.content })),
         user_message: userMsg,
         api_key: userApiKey || undefined,
       });
       setTyping(false);
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply || data.message || 'I see...' }]);
+      setMessages(prev => [...prev, { id: nextMsgId(), role: 'assistant', content: data.reply || data.message || 'I see...' }]);
     } catch (err) {
       setTyping(false);
-      // Fallback: simple ai response
       const fallbacks: Record<string, string> = {
         first_date: "That's interesting... tell me more about yourself.",
         cold_approach: "Oh, um... hi. That was unexpected.",
         salary_negotiation: "We were thinking more around the range we discussed.",
         default: "Hmm, let me think about that.",
       };
-      setMessages(prev => [...prev, { role: 'assistant', content: fallbacks[selectedScenario.id] || fallbacks.default }]);
+      setMessages(prev => [...prev, { id: nextMsgId(), role: 'assistant', content: fallbacks[selectedScenario.id] || fallbacks.default }]);
     } finally {
       setSending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -582,8 +609,8 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
                 </Text>
               </View>
             )}
-            {messages.map((msg, i) => (
-              <View key={i} style={[styles.msgRow, { justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }]}>
+            {messages.map((msg) => (
+              <View key={msg.id} style={[styles.msgRow, { justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }]}>
                 <View style={[styles.msgBox, {
                   backgroundColor: msg.role === 'user' ? theme.gold : theme.bgElevated,
                   borderBottomRightRadius: msg.role === 'user' ? 4 : 14,
@@ -623,13 +650,34 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
     );
   }
 
+  // ─── LOCKED SCREEN for Free / Grind tier ──────────────────────────
+  if (!convoLabUnlocked) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+        <Feather name="lock" size={48} color={theme.gold} />
+        <Text style={{ color: theme.textPrimary, fontFamily: FONTS.cinzelBold, fontSize: 20, marginTop: 20, textAlign: 'center' }}>
+          ALPHA ACCESS REQUIRED
+        </Text>
+        <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 12, lineHeight: 20, fontFamily: FONTS.regular }}>
+          The Convo Lab AI Simulator is available exclusively for Alpha and Sigma members. Upgrade your plan to unlock 22+ conversation scenarios, AI coaching, and real-time practice.
+        </Text>
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleGate('convo_lab'); }}
+          style={{ marginTop: 24, backgroundColor: theme.gold, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 }}
+        >
+          <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold, fontSize: 14 }}>UPGRADE NOW</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
       {/* ── Conversation Guidelines ── */}
       <Text style={[styles.sectionTitle, { color: theme.gold, marginBottom: SPACING.sm }]}>CONVERSATION GUIDELINES</Text>
       <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: SPACING.md, fontFamily: FONTS.regular }}>Master these principles before entering any scenario.</Text>
-      {CONVO_GUIDELINES.map((g, i) => (
-        <TouchableOpacity key={i} onPress={() => setShowGuide(showGuide === g.title ? null : g.title)} activeOpacity={0.8}>
+      {CONVO_GUIDELINES.map((g) => (
+        <TouchableOpacity key={g.title} onPress={() => setShowGuide(showGuide === g.title ? null : g.title)} activeOpacity={0.8}>
           <View style={[styles.guideCard, { backgroundColor: theme.bgSurface, borderColor: showGuide === g.title ? theme.gold + '44' : theme.border }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -668,11 +716,11 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
         </View>
       </ScrollView>
 
-      {filteredScenarios.map(s => {
+      {filteredScenarios.map((s, sIdx) => {
         const locked = !canAccess(s.plan);
         return (
           <TouchableOpacity
-            key={s.id}
+            key={`${s.id}_${sIdx}`}
             onPress={() => {
               if (locked) {
                 handleGate(s.plan);
@@ -702,8 +750,8 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
       {/* ── Recommended Resources ── */}
       <Text style={[styles.sectionTitle, { color: theme.gold, marginTop: SPACING.xl, marginBottom: SPACING.sm }]}>RECOMMENDED RESOURCES</Text>
       <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: SPACING.md, fontFamily: FONTS.regular }}>Level up your social intelligence with these handpicked resources.</Text>
-      {RECOMMENDED_RESOURCES.map((r, i) => (
-        <View key={i} style={[styles.resourceCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+      {RECOMMENDED_RESOURCES.map((r) => (
+        <View key={r.title} style={[styles.resourceCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
           <View style={[styles.resourceType, { backgroundColor: theme.bgElevated }]}>
             <Text style={{ color: theme.gold, fontFamily: FONTS.semiBold, fontSize: 10 }}>{r.type.toUpperCase()}</Text>
           </View>
@@ -789,20 +837,36 @@ function LibraryView({ theme, user }: any) {
   const [videoFilter, setVideoFilter] = useState('all');
   const [bookFilter, setBookFilter] = useState('all');
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [selectedCreator, setSelectedCreator] = useState<any>(null);
 
   useEffect(() => {
-    fetchAll();
+    let active = true;
+    const timeout = setTimeout(() => {
+      if (active && loading) setLoading(false);
+    }, 8000); // 8s timeout for library as it has more data
+
+    fetchAll().then(() => {
+      if (active) clearTimeout(timeout);
+    });
+
+    return () => { active = false; clearTimeout(timeout); };
   }, []);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [vRes, bRes, fRes, cRes] = await Promise.all([
+      const results = await Promise.allSettled([
         supabase.from('library_videos').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('library_books').select('*').eq('is_active', true).order('sort_order'),
         user ? supabase.from('favorites').select('item_id').eq('user_id', user.id) : Promise.resolve({ data: [] }),
         supabase.from('library_creators').select('*'),
       ]);
+
+      const vRes = results[0].status === 'fulfilled' ? results[0].value : { data: [] };
+      const bRes = results[1].status === 'fulfilled' ? results[1].value : { data: [] };
+      const fRes = results[2].status === 'fulfilled' ? results[2].value : { data: [] };
+      const cRes = results[3].status === 'fulfilled' ? results[3].value : { data: [] };
+
       setVideos(vRes.data || []);
       setBooks(bRes.data || []);
       setCreators(cRes.data || []);
@@ -840,8 +904,12 @@ function LibraryView({ theme, user }: any) {
   const handleShareVideo = async (video: any) => {
     const isRealYT = video.youtube_id && !video.youtube_id.includes('_');
     const url = isRealYT ? `https://youtu.be/${video.youtube_id}` : `MAXX Library — ${video.title}`;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await Share.share({ message: `${video.title}\n${url}\n\nShared from MAXX App`, url });
+      await Share.share({ 
+        message: `${video.title}\nWatch here: ${url}\n\nShared from MAXX App`, 
+        url: isRealYT ? url : undefined 
+      });
     } catch (e) {}
   };
 
@@ -918,7 +986,14 @@ function LibraryView({ theme, user }: any) {
             return (
               <View key={ci} style={{ marginBottom: SPACING.xl }}>
                 {/* Channel Header */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <TouchableOpacity 
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setSelectedCreator(creator || { name: ch.name, platform: ch.platform });
+                  }}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}
+                >
                   <View style={[styles.channelCircle, { backgroundColor: channelCol + '22', borderColor: channelCol + '44', overflow: 'hidden' }]}>
                     {creator?.profile_image_url ? (
                       <Image source={{ uri: creator.profile_image_url }} style={{ width: '100%', height: '100%' }} />
@@ -926,11 +1001,12 @@ function LibraryView({ theme, user }: any) {
                       <Text style={{ color: channelCol, fontFamily: FONTS.bold, fontSize: 14 }}>{getInitials(ch.name)}</Text>
                     )}
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 13 }}>{ch.name}</Text>
-                    <Text style={{ color: theme.textMuted, fontSize: 10, fontFamily: FONTS.regular }}>{ch.platform}</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 10, fontFamily: FONTS.regular }}>{ch.platform} · Tap for details</Text>
                   </View>
-                </View>
+                  <Feather name="info" size={16} color={theme.textMuted} />
+                </TouchableOpacity>
 
                 {/* Horizontal Video Scroll */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }}>
@@ -1083,6 +1159,105 @@ function LibraryView({ theme, user }: any) {
           )}
         </>
       )}
+      {/* Premium Creator Detail Modal */}
+      <Modal visible={!!selectedCreator} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ 
+            backgroundColor: theme.bgSurface, 
+            borderRadius: 32, 
+            width: '100%',
+            maxWidth: 400,
+            padding: 32, 
+            borderWidth: 1, 
+            borderColor: theme.border,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 20 },
+            shadowOpacity: 0.5,
+            shadowRadius: 30,
+            elevation: 20
+          }}>
+            <TouchableOpacity 
+              onPress={() => setSelectedCreator(null)}
+              style={{ position: 'absolute', right: 20, top: 20, zIndex: 10, padding: 8 }}
+            >
+              <Feather name="x" size={24} color={theme.textMuted} />
+            </TouchableOpacity>
+
+            <View style={{ alignItems: 'center', marginBottom: 24 }}>
+              <View style={{ 
+                width: 100, 
+                height: 100, 
+                borderRadius: 50, 
+                backgroundColor: theme.bgElevated, 
+                borderWidth: 3, 
+                borderColor: theme.gold, 
+                overflow: 'hidden', 
+                marginBottom: 16,
+                shadowColor: theme.gold,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8
+              }}>
+                {selectedCreator?.profile_image_url ? (
+                   <Image source={{ uri: selectedCreator.profile_image_url }} style={{ width: '100%', height: '100%' }} />
+                ) : (
+                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                     <Text style={{ color: theme.gold, fontFamily: FONTS.bold, fontSize: 32 }}>{getInitials(selectedCreator?.name || 'C')}</Text>
+                   </View>
+                )}
+              </View>
+              <Text style={{ color: theme.textPrimary, fontFamily: FONTS.cinzelBold, fontSize: 28, textAlign: 'center' }}>{selectedCreator?.name}</Text>
+              <View style={{ backgroundColor: theme.gold + '15', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginTop: 8 }}>
+                <Text style={{ color: theme.gold, fontFamily: FONTS.bold, fontSize: 11, letterSpacing: 1.5 }}>{selectedCreator?.platform?.toUpperCase() || 'ARCHIVE CREATOR'}</Text>
+              </View>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: theme.border, width: '100%', marginBottom: 20 }} />
+
+            <ScrollView style={{ maxHeight: 300, marginBottom: 10 }} showsVerticalScrollIndicator={false}>
+              <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 24, textAlign: 'center', fontFamily: FONTS.regular, fontStyle: 'italic' }}>
+                "{selectedCreator?.bio || "Archived wisdom from one of the most influential minds in the space. More intelligence reports coming soon."}"
+              </Text>
+              
+              {selectedCreator?.socials && (
+                <View style={{ marginTop: 32 }}>
+                   <Text style={{ color: theme.textMuted, fontSize: 10, fontFamily: FONTS.bold, letterSpacing: 2, textAlign: 'center', marginBottom: 16 }}>CONNECT</Text>
+                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+                    {Object.entries(selectedCreator.socials).map(([platform, link]: any) => (
+                      <TouchableOpacity 
+                        key={platform} 
+                        onPress={() => Linking.openURL(link)}
+                        style={{ 
+                          backgroundColor: theme.bgElevated, 
+                          width: 48, 
+                          height: 48, 
+                          borderRadius: 24, 
+                          borderWidth: 1, 
+                          borderColor: theme.border, 
+                          alignItems: 'center', 
+                          justifyContent: 'center' 
+                        }}
+                      >
+                        <Feather 
+                          name={
+                            platform === 'twitter' || platform === 'x' ? 'twitter' : 
+                            platform === 'youtube' ? 'youtube' : 
+                            platform === 'instagram' ? 'instagram' :
+                            'external-link'
+                          } 
+                          size={20} 
+                          color={theme.gold} 
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <View style={{ height: 80 }} />
     </ScrollView>
   );

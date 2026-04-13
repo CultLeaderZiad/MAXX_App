@@ -14,6 +14,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -220,7 +221,7 @@ export default function RegisterWizard() {
     if (step > 1) {
       setStep(step - 1);
     } else {
-      router.back();
+      safeBack();
     }
   };
 

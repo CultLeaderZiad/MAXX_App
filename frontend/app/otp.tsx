@@ -10,6 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -235,7 +236,7 @@ export default function OTPScreen() {
         style={{ flex: 1 }}
       >
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack()}
           style={styles.backBtn}
           testID="otp-back-btn"
         >

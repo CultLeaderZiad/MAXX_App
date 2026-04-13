@@ -7,11 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
+  Linking,
+  Alert,
+  Image,
+  Share,
 } from "react-native";
+import * as Sharing from "expo-sharing";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import { WebView } from "react-native-webview";
 import { useTheme } from "../src/context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
@@ -19,6 +25,9 @@ import { supabase } from "../lib/supabase";
 import { FONTS, SPACING, RADIUS } from "../src/constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// YouTube refinement logic: use URI source for better header handling
+const getYoutubeUri = (id: string) => `https://www.youtube.com/embed/${id}?autoplay=1&modestbranding=1&rel=0&showinfo=0&mute=0&playsinline=1&origin=https://www.youtube.com`;
 
 export default function LibraryVideoScreen() {
   const { theme } = useTheme();
@@ -31,6 +40,8 @@ export default function LibraryVideoScreen() {
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [webViewError, setWebViewError] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (videoId) {
@@ -43,7 +54,7 @@ export default function LibraryVideoScreen() {
     try {
       const { data, error } = await supabase
         .from("library_videos")
-        .select("*")
+        .select("*, library_creators(*)")
         .eq("id", videoId)
         .single();
       if (!error && data) {
@@ -101,6 +112,32 @@ export default function LibraryVideoScreen() {
     }
   };
 
+  const handleShare = async () => {
+      if (!video?.youtube_id) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const url = `https://youtu.be/${video.youtube_id}`;
+      try {
+          await Share.share({
+              message: `${video.title}\nWatch here: ${url}\n\nShared from MAXX`,
+              url: url // iOS only
+          });
+      } catch (e) {
+          Linking.openURL(url);
+      }
+  };
+
+  const openInYouTube = () => {
+    if (!video?.youtube_id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const ytUrl = `https://www.youtube.com/watch?v=${video.youtube_id}`;
+    Linking.openURL(ytUrl).catch(() => {
+      Alert.alert('Error', 'Could not open YouTube. Please try again.');
+    });
+  };
+
+  const videoUri = video?.youtube_id ? getYoutubeUri(video.youtube_id) : null;
+
+  // ─── Early returns (AFTER all hooks) ──────────────────────────────
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary, justifyContent: 'center', alignItems: 'center' }]}>
@@ -113,103 +150,117 @@ export default function LibraryVideoScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary, justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={{ color: theme.textSecondary, fontFamily: FONTS.regular }}>Video not found.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
+        <TouchableOpacity onPress={() => safeBack()} style={{ marginTop: 20 }}>
           <Text style={{ color: theme.gold, fontFamily: FONTS.medium }}>GO BACK</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
   }
 
-  const htmlContent = `
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-        <style>
-          body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: ${theme.bgPrimary}; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh;
-          }
-          iframe { 
-            width: 100%; 
-            height: 100%;
-            border: none;
-          }
-        </style>
-      </head>
-      <body>
-        ${
-          video.youtube_id 
-          ? `<iframe src="https://www.youtube.com/embed/${video.youtube_id}?autoplay=0&playsinline=1&modestbranding=1&rel=0" allowfullscreen allow="autoplay; fullscreen"></iframe>`
-          : `<div style="color: ${theme.gold}; font-family: sans-serif; text-align: center; padding: 20px;">VIDEO SOURCE UNAVAILABLE</div>`
-        }
-      </body>
-    </html>
-  `;
+  const creator = video.library_creators;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => safeBack()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]} numberOfLines={1}>
           ARCHIVE FEED
         </Text>
-        <TouchableOpacity onPress={toggleFavorite} style={styles.backBtn} disabled={isSaving}>
-          <Feather name="bookmark" size={24} color={isFavorite ? theme.gold : theme.textMuted} />
-        </TouchableOpacity>
+        <View style={{ width: 44 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.videoContainer}>
-          <WebView
-            source={{ html: htmlContent }}
-            style={styles.webview}
-            scrollEnabled={false}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-          />
+      <View style={styles.videoContainer}>
+          {webViewError ? (
+            <TouchableOpacity onPress={openInYouTube} style={styles.errorFallback}>
+              <Feather name="youtube" size={48} color={theme.gold} />
+              <Text style={{ color: theme.gold, fontFamily: FONTS.bold, marginTop: 12, fontSize: 14 }}>OPEN IN YOUTUBE</Text>
+              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>Player failed to load — tap to watch externally</Text>
+            </TouchableOpacity>
+          ) : !isPlaying ? (
+            <TouchableOpacity onPress={() => setIsPlaying(true)} style={{flex: 1, backgroundColor: '#000'}} activeOpacity={0.9}>
+              <Image 
+                source={{ uri: video?.thumbnail_url || `https://img.youtube.com/vi/${video?.youtube_id}/hqdefault.jpg` }}
+                style={{ width: '100%', height: '100%', resizeMode: 'cover', opacity: 0.7 }}
+              />
+              <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
+                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: theme.gold }}>
+                  <Feather name="play" size={28} color={theme.gold} style={{ marginLeft: 4 }} />
+                </View>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <WebView
+              source={{ 
+                  uri: videoUri || '',
+                  headers: {
+                    'Referer': 'https://www.youtube.com',
+                    'Origin': 'https://www.youtube.com'
+                  }
+              }}
+              style={styles.webview}
+              scrollEnabled={false}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              allowsInlineMediaPlayback={true}
+              mediaPlaybackRequiresUserAction={false}
+              onError={() => setWebViewError(true)}
+              onHttpError={() => setWebViewError(true)}
+              startInLoadingState={true}
+              renderLoading={() => <ActivityIndicator size="large" color={theme.gold} style={{ flex: 1, backgroundColor: '#000' }} />}
+              userAgent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+              allowsFullscreenVideo={true}
+            />
+          )}
         </View>
 
         <View style={styles.content}>
-          <Text style={[styles.category, { color: theme.gold, fontFamily: FONTS.bold }]}>
-            {video.category?.toUpperCase() || "VISUAL MEDIA"}
-          </Text>
-          <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>
-            {video.title}
-          </Text>
+          <View style={styles.titleRow}>
+              <View style={{ flex: 1 }}>
+                  <Text style={[styles.category, { color: theme.gold, fontFamily: FONTS.bold }]}>
+                    {video.category?.toUpperCase() || "VISUAL MEDIA"}
+                  </Text>
+                  <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>
+                    {video.title}
+                  </Text>
+              </View>
+              <View style={{ alignItems: 'center', paddingLeft: 10 }}>
+                <TouchableOpacity onPress={toggleFavorite} style={styles.loveBtn}>
+                    <Feather name="heart" size={28} color={isFavorite ? theme.gold : theme.textMuted} fill={isFavorite ? theme.gold : "transparent"} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleShare} style={[styles.loveBtn, { marginTop: 8 }]}>
+                    <Feather name="share-2" size={24} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+          </View>
           
-          <View style={styles.metaRow}>
-            <View style={styles.metaItem}>
-              <Feather name="user" size={14} color={theme.textMuted} />
-              <Text style={[styles.metaText, { color: theme.textMuted, fontFamily: FONTS.medium }]}>
-                {video.creator || "Unknown Creator"}
-              </Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Feather name="clock" size={14} color={theme.textMuted} />
-              <Text style={[styles.metaText, { color: theme.textMuted, fontFamily: FONTS.medium }]}>
-                {video.duration_min || 0} min
-              </Text>
-            </View>
+          <View style={styles.creatorProfile}>
+              <Image 
+                source={{ uri: creator?.profile_image_url || "https://img.youtube.com/vi/" + video.youtube_id + "/default.jpg" }} 
+                style={styles.creatorAvatar}
+              />
+              <View>
+                  <Text style={[styles.creatorName, { color: theme.textPrimary, fontFamily: FONTS.bold }]}>
+                    {video.creator || "Unknown Creator"}
+                  </Text>
+                  <Text style={[styles.creatorHandle, { color: theme.textMuted }]}>
+                    {creator?.handle || "@" + (video.creator?.replace(/\s/g, "") || "creator")}
+                  </Text>
+              </View>
+              <View style={styles.durationBadge}>
+                  <Feather name="clock" size={14} color={theme.textMuted} />
+                  <Text style={[styles.metaText, { color: theme.textMuted, fontFamily: FONTS.medium }]}>
+                    {video.duration_min || 0} min
+                  </Text>
+              </View>
           </View>
 
-          {video.tags && video.tags.length > 0 && (
-            <View style={styles.tagsContainer}>
-              {video.tags.map((tag: string, index: number) => (
-                <View key={index} style={[styles.tagBadge, { backgroundColor: theme.bgElevated }]}>
-                  <Text style={[styles.tagText, { color: theme.textSecondary, fontFamily: FONTS.medium }]}>
-                    #{tag.toUpperCase()}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
+          <TouchableOpacity onPress={openInYouTube} style={[styles.ytFallbackBtn, { borderColor: theme.border }]}>
+            <Feather name="external-link" size={16} color={theme.gold} />
+            <Text style={{ color: theme.gold, fontFamily: FONTS.medium, fontSize: 13, marginLeft: 8 }}>Watch in YouTube App</Text>
+          </TouchableOpacity>
 
           <View style={styles.divider} />
 
@@ -233,7 +284,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
   },
   backBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
-  headerTitle: { fontSize: 16, letterSpacing: 2, flex: 1, textAlign: "center", marginHorizontal: SPACING.md },
+  headerTitle: { fontSize: 16, letterSpacing: 2, flex: 1, textAlign: "center" },
   scroll: { paddingBottom: 100 },
   videoContainer: {
     width: "100%",
@@ -242,15 +293,36 @@ const styles = StyleSheet.create({
   },
   webview: { flex: 1, backgroundColor: "transparent" },
   content: { padding: SPACING.lg },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
+  loveBtn: { padding: 8, marginTop: 4 },
   category: { fontSize: 10, letterSpacing: 2, marginBottom: 8 },
-  title: { fontSize: 22, lineHeight: 28, marginBottom: 16 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 20 },
-  metaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  metaText: { fontSize: 14 },
-  tagsContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: SPACING.xl },
-  tagBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.pill },
-  tagText: { fontSize: 11, letterSpacing: 1 },
-  divider: { height: 1, backgroundColor: "rgba(255,255,255,0.1)", marginBottom: SPACING.lg },
-  sectionTitle: { fontSize: 14, letterSpacing: 2, marginBottom: SPACING.md },
+  title: { fontSize: 24, lineHeight: 30, marginBottom: 4 },
+  creatorProfile: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      backgroundColor: 'rgba(255,255,255,0.03)', 
+      padding: 12, 
+      borderRadius: RADIUS.lg,
+      marginBottom: 20,
+      gap: 12
+  },
+  creatorAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#222' },
+  creatorName: { fontSize: 15 },
+  creatorHandle: { fontSize: 12, marginTop: 1 },
+  durationBadge: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 13 },
+  divider: { height: 1, backgroundColor: "rgba(255,255,255,0.1)", marginVertical: SPACING.xl },
+  sectionTitle: { fontSize: 13, letterSpacing: 2, marginBottom: SPACING.md, color: 'rgba(255,255,255,0.5)' },
   description: { fontSize: 15, lineHeight: 24 },
+  errorFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+  ytFallbackBtn: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      paddingVertical: 14, 
+      borderRadius: RADIUS.md, 
+      borderWidth: 1,
+      backgroundColor: 'rgba(255,215,0,0.05)'
+  },
 });
+

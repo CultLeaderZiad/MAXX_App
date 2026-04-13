@@ -150,23 +150,40 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    let active = true;
+    const timeout = setTimeout(() => {
+      if (active && loading) {
+        setLoading(false);
+        setError(true);
+      }
+    }, 7000); // 7s safety timeout
+
+    fetchData().then(() => {
+      if (active) clearTimeout(timeout);
+    });
+
+    return () => { active = false; clearTimeout(timeout); };
   }, [category]);
 
   const fetchData = async () => {
+    if (!category) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(false);
     try {
       const { data: progData, error: progErr } = await supabase
         .from("training_programs")
-        .select(
-          "id, title, subtitle, description, difficulty, unlock_level, required_plan, duration_weeks, sort_order",
-        )
+        .select(`
+          id, title, subtitle, description, difficulty, unlock_level, required_plan, duration_weeks, sort_order
+        `)
         .eq("category", category)
         .eq("is_active", true)
         .order("sort_order");
 
       if (progErr) throw progErr;
+      
       if (!progData || progData.length === 0) {
         setPrograms([]);
         setLoading(false);
@@ -182,24 +199,22 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
       });
       setPrograms(progs);
 
-      // Fetch exercises for all programs in parallel
-      const exerciseResults = await Promise.all(
-        progs.map(async (p: any) => {
-          const { data: exData } = await supabase
-            .from("exercises")
-            .select("*")
-            .eq("program_id", p.id)
-            .eq("is_active", true)
-            .order("exercise_order");
-          return { programId: p.id, exercises: exData || [] };
-        }),
-      );
-
-      const exMap: Record<string, any[]> = {};
-      exerciseResults.forEach(({ programId, exercises: ex }) => {
-        exMap[programId] = ex;
-      });
-      setExercises(exMap);
+      // Simple fetch for exercises to avoid deep nesting issues
+      const { data: allEx, error: exErr } = await supabase
+        .from("exercises")
+        .select("*")
+        .in("program_id", progs.map(p => p.id))
+        .eq("is_active", true)
+        .order("exercise_order");
+      
+      if (!exErr && allEx) {
+        const exMap: Record<string, any[]> = {};
+        allEx.forEach(ex => {
+          if (!exMap[ex.program_id]) exMap[ex.program_id] = [];
+          exMap[ex.program_id].push(ex);
+        });
+        setExercises(exMap);
+      }
     } catch (e) {
       console.error("Train fetch error:", e);
       setError(true);

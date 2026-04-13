@@ -1,100 +1,129 @@
 # MAXX App — Implementation Status
 
-## Latest Session (April 4, 2026)
-**Focus: Performance, Navigation, Video Player, Home Page, Focus Page, Profile**
+## Latest Sessions (April 4 - April 13, 2026)
+**Focus: Auth Flow, Library Feature, Brotherhood Community, Convo Lab Polish, Navigation & Stability, Bug Fixes & Premium UX**
 
 ---
 
-### ✅ COMPLETED FIXES
+### ✅ LATEST FIXES & FEATURES (April 13 — Session 2)
 
-#### 1. Video Player — REBUILT (Error 153 / Lag Fixed)
-- **Problem:** WebView-based YouTube embed caused Error 153 (player config error), lag, and crashes. Generic search-based video lookup was brittle.
-- **Solution:** Complete rewrite of `exercise.tsx`:
-  - Removed WebView entirely — replaced with a **tap-to-open YouTube** card that opens the YouTube app/browser via `Linking.openURL()`
-  - Built a **curated Exercise Video Library** with 30+ exercise entries mapped by name/type
-  - Each entry includes: `videoId`, `title`, `guidelines[]`, `formCues[]`, `commonMistakes[]`
-  - Smart matching: exact → partial → category-based fallback (jaw/body/posture)
-  - Added **collapsible Form Guidelines** section with numbered steps, form cues, and common mistakes
-  - Added **2-phase UX flow**: Phase 1 (Watch & Learn) → Phase 2 (Train with Timer)
-  - Rest timer with **pulse animation** and haptic feedback
-  - XP logging and workout completion tracking to Supabase
-- **File:** `app/exercise.tsx`
+#### 1. Convo Lab Crash — FIXED ✅
+- **Root Cause:** Duplicate scenario ID `gym_approach` appearing twice in the SCENARIOS array caused React's `Encountered two children with the same key` crash.
+- **Fix:** 
+  - Renamed the duplicate to `gym_approach_v2` with a distinct title "Gym Approach (Advanced)".
+  - Replaced all `.map((msg, i) => ... key={i})` with unique `msg.id` keys using a `nextMsgId()` counter utility.
+  - Applied unique keys across **all** `.map()` renders: wisdom cards (`card_date`), guidelines (`g.title`), resources (`r.title`), scenarios (`${s.id}_${sIdx}`).
+
+#### 2. Convo Lab — BYOK (Bring Your Own Key) — IMPLEMENTED ✅
+- API key storage key renamed from `convo_api_key` → `maxx_convo_api_key` for consistency.
+- Messages now carry unique IDs (`{ id, role, content }`) preventing duplicate-key crashes even in rapid conversations.
+- Haptic feedback added to: entering a scenario (`Medium`), saving API key (`Success notification`), and sending messages (`Light`).
+
+#### 3. Convo Lab — Tier Gating — IMPLEMENTED ✅
+- **New:** `canAccess('convo_lab')` check added at the top of the ConvoLabView.
+- **Locked Screen:** Free and Grind tier users now see a full-screen lock overlay with:
+  - 🔒 Lock icon + "ALPHA ACCESS REQUIRED" heading
+  - Contextual description explaining what they're missing (22+ scenarios, AI coaching)
+  - Gold "UPGRADE NOW" button that triggers `handleGate('convo_lab')` → routes to pricing plans
+- Only Alpha and Sigma members can enter the Convo Lab.
+
+#### 4. Video Player (Error 153) — FIXED ✅
+- **Root Cause:** WebView missing `originWhitelist`, `javaScriptEnabled`, and `domStorageEnabled` props caused configuration errors.
+- **Fix:**
+  - Added all required WebView props: `originWhitelist={['*']}`, `javaScriptEnabled`, `domStorageEnabled`
+  - Added `onError` and `onHttpError` handlers that show a graceful fallback UI
+  - **Fallback UI:** If WebView fails → shows a "OPEN IN YOUTUBE" button using `Linking.openURL()`
+  - **Persistent fallback:** "Open in YouTube App" link always visible below the player for quick access
+  - Extracted embed HTML into a clean `YOUTUBE_EMBED_HTML()` template function
+
+#### 5. Brotherhood Community — POLISHED ✅
+- Added `expo-haptics` integration:
+  - **FAB button:** `Heavy` haptic on tap
+  - **Post submission:** `Medium` haptic on broadcast
+  - **Respect reaction:** `Light` haptic on emoji tap
+- Real-time listener, virtual seeder bots, and image sharing remain fully functional.
+
+#### 6. Payment Checkout — PREMIUM UI WIREFRAME ✅
+- **Before:** Bare-bones trial button with no payment method selection.
+- **After:** Full premium checkout experience:
+  - **Payment method rows:** Apple Pay (Recommended badge), Stripe, PayPal — each with radio selection, icons, and haptic feedback
+  - **Price display:** Shows plan price with `/mo` suffix next to plan name
+  - **Trust badges:** SSL Encrypted • Secure Payments • Cancel Anytime
+  - **Centered header** with proper back navigation
+  - Haptic feedback on trial activation (`Success notification`) and back button (`Light`)
+
+---
+
+### ✅ PREVIOUSLY COMPLETED (April 12-13)
+
+#### 1. Authentication Flow — OVERHAULED & SECURED
+- Rewrote Auth flow resolving 6-digit vs 8-digit OTP confusion.
+- Implemented "Already have an account?" paths, repeated signup detection.
+- Integrated `cultleaderzoz.dev@gmail.com` as primary admin role.
+
+#### 2. Library & Knowledge Hub — IMPLEMENTED
+- Added Library sub-tab inside Focus/Growth sections.
+- Rendered curated Self-improvement Library (Books + Videos).
+- Added Share / Save buttons for community interaction.
+
+#### 3. Brotherhood Community — ENHANCED
+- Implemented Global Feed allowing peer progress scrolling.
+- Enabled image-based win-sharing and emoji reactions.
+- Real-time sync via Supabase channels.
+
+#### 4. Convo Lab / AI Modules — RESTORED & POLISHED
+- Integrated `KeyboardAvoidingView` for chat contexts.
+- Added API key management UI.
+- Maintained 22+ scenario lists with interactive filters.
+
+#### 5. Typescript & Cache Stability — RESOLVED
+- Standardized launch: `npx expo start --clear`.
+- Achieved 0 TypeScript errors.
+
+---
+
+### ✅ PREVIOUS FIXES (April 4)
+
+#### 1. Video Player — REBUILT
+- Replaced buggy WebViews with tap-to-open YouTube strategy.
 
 #### 2. Home Page — REDESIGNED
-- **Problem:** Static buttons, no dynamic content, lag, no modern design.
-- **Solution:** Complete rewrite of `app/(tabs)/index.tsx`:
-  - **Animated card entrances** with staggered fade-in + slide-up
-  - **Premium header** with LinearGradient overlay and power level bar
-  - **Quick Actions row** — 6 functional shortcuts (Train, Focus, NoFap, Emergency, Social, Convo Lab) — all navigate on tap with haptic feedback
-  - **Today's Mission** — interactive checkboxes that log XP to Supabase, show completion bonus hint
-  - **Wisdom Drop** — dynamic quote card with "Read More" button
-  - **Motivation Card** — daily grind message with Start Training + Convo Lab CTAs
-  - **Bottom Stats Row** — NoFap timer (live), Workouts, XP — all tappable, navigate to relevant screens
-  - **XP float animation** — "+XP" text floats up and fades when completing missions
-  - Removed BlurView dependency for performance
-- **File:** `app/(tabs)/index.tsx`
+- Staggering fade-ins, dynamic missions, XP float animations, Quick Action rows.
 
 #### 3. Navigation "Flashy" Bug — FIXED
-- **Root Cause:** The `useEffect` in `_layout.tsx` had `segments` in its dependency array. Every route change triggered the guard, which then navigated again, creating a visual "flash" loop.
-- **Fix (app/_layout.tsx):**
-  - Removed `segments` from the useEffect dependency array
-  - Set `animation: 'none'` on the root index screen and `(tabs)` group
-  - Set `animation: 'fade'` on auth screens (otp, login, register, goals, weakspots, stats, plans)
-  - Changed default animation from `'fade'` to `'fade_from_bottom'` with 250ms duration
-  - Added explicit `Stack.Screen` entries for nofap, settings, supplements, support with proper animations
-  - Added `hasNavigated` ref guard to prevent multiple rapid navigations
-- **File:** `app/_layout.tsx`
+- Removed `segments` from layout dependencies; implemented `fade_from_bottom` animations.
 
-#### 4. Convo Lab — MASSIVELY EXPANDED
-- **Added 7 new AI scenarios** (22 total):
-  - Networking Event Power Move, Verbal Confrontation, Social Proof Approach
-  - Setting Boundaries, Public Speaking Challenge, Serious Talk with Parents, Dating App Texting
-- **Added category system** with filter pills: All / Dating / Social / Professional
-- **Added Conversation Guidelines** section (5 expandable cards):
-  - Frame Control, Listening & Calibration, Openers That Work, Escalation Ladder, Professional Communication
-- **Added Recommended Resources** section (8 entries):
-  - Books: Models, Rational Male, 48 Laws of Power, Never Split the Difference, Discipline Equals Freedom, How to Win Friends
-  - YouTube: Charisma on Command
-  - Podcast: Art of Manliness
-- **File:** `app/(tabs)/focus.tsx`
-
-#### 5. Confidence Modules — EXPANDED
-- **Added 4 new modules** (10 total):
-  - Voice Tonality Mastery, Emotional Control Under Pressure, Storytelling & Narrative Power, The Abundance Mindset
-- Each includes: content text, daily challenge, XP reward, plan gating
-- **File:** `app/(tabs)/focus.tsx`
-
-#### 6. Focus Page — ALL STATIC REMOVED
-- All buttons in the Focus page are now interactive `TouchableOpacity` components
-- Scenario cards navigate to chat, modules open modal, guidelines expand on tap, resources render inline
-- No static/dead buttons remain
-
-#### 7. Username Display — FIXED
-- **Problem:** Full name and @username getting truncated in the Profile header.
-- **Fix:**
-  - Added `numberOfLines={2}` and `adjustsFontSizeToFit` with `minimumFontScale={0.7}` on full name
-  - Added `numberOfLines={1}`, `adjustsFontSizeToFit`, and `maxWidth: '90%'` on @username
-  - Set `textAlign: 'center'` and `maxWidth: '85%'` on userName style
-  - Removed unused `BlurView` import for cleanliness
-- **File:** `app/(tabs)/profile.tsx`
+#### 4. Confidence Modules & Username Display
+- Added 4 new modules, expanded curriculum, fixed username truncation.
 
 ---
 
-### FILES MODIFIED
-| File | Change |
+### FILES MODIFIED (This Session)
+| Path/Area | Change |
 |------|--------|
-| `app/exercise.tsx` | Complete rewrite — video library + guidelines + timer |
-| `app/(tabs)/index.tsx` | Complete rewrite — premium animated home dashboard |
-| `app/_layout.tsx` | Navigation flash fix + animation config |
-| `app/(tabs)/focus.tsx` | Expanded Convo Lab, guidelines, resources, modules |
-| `app/(tabs)/profile.tsx` | Username visibility + BlurView removal |
+| `frontend/app/(tabs)/focus.tsx` | Fixed duplicate key crash, added tier gating, BYOK improvements, haptics |
+| `frontend/app/(tabs)/social.tsx` | Added expo-haptics to FAB, posts, and reactions |
+| `frontend/app/library-video.tsx` | Fixed WebView Error 153, added fallback YouTube link, error handling |
+| `frontend/app/payment.tsx` | Premium checkout UI with payment method rows, trust badges, haptics |
 
-### NO SQL CHANGES REQUIRED
-The current Supabase schema supports all implemented features. No migration needed.
+---
 
-### NEXT STEPS
-- [ ] Test on physical device for haptic feedback and performance validation
-- [ ] Verify YouTube links open correctly in the YouTube app on iOS/Android
-- [ ] Test Convo Lab AI chat with backend API endpoint
-- [ ] Add more exercise videos to the library as needed
-- [ ] Consider adding a "video completed" flag to auto-advance to workout phase
+### 🚀 REMAINING PRIORITIES
+
+1. **Native Payments (Apple Pay / Stripe)**
+   - *Current State:* Payment method rows are wireframed — ready for `expo-apple-authentication` and Stripe SDK integration.
+   - *Action:* Wire the `selectedMethod` state to real payment processors.
+
+2. **Push Notifications & Streaks**
+   - *Current State:* `expo-notifications` configured but realtime listener not wired.
+   - *Action:* Finish Supabase realtime → push notification pipeline for new library content and streak reminders.
+
+3. **Offline Caching**
+   - *Current State:* All reads are live Supabase queries.
+   - *Action:* Cache library metadata and training plans via AsyncStorage/WatermelonDB for gym environments.
+
+4. **"Sigma Mentors" (Voice AI)**
+   - Text-based Convo Lab is fully functional; next step is Gemini audio for real-time voice sparring.
+
+5. **Analytics & Crashlytics**
+   - *Action:* Setup PostHog/Sentry for OTP flow drop-offs and edge-case crash tracking.

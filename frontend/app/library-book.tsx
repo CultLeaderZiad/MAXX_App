@@ -9,11 +9,13 @@ import {
   Dimensions,
   Image,
   Linking,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../src/context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
@@ -129,7 +131,7 @@ export default function LibraryBookScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary, justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={{ color: theme.textSecondary, fontFamily: FONTS.regular }}>Book not found.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
+        <TouchableOpacity onPress={() => safeBack()} style={{ marginTop: 20 }}>
           <Text style={{ color: theme.gold, fontFamily: FONTS.medium }}>GO BACK</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -139,7 +141,7 @@ export default function LibraryBookScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => safeBack()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]} numberOfLines={1}>

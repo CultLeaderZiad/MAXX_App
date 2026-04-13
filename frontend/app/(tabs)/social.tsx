@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -18,7 +19,7 @@ import { usePlan } from '../../hooks/usePlan';
 
 const TABS = ['Audit', 'Dating IQ', 'Brotherhood'];
 const PLATFORMS = ['Instagram', 'TikTok', 'Twitter', 'LinkedIn', 'Tinder'];
-const POST_TYPES = ['WIN', 'MILESTONE', 'INSIGHT'];
+const POST_TYPES = ['win', 'milestone', 'insight'];
 
 export default function SocialScreen() {
   const { theme } = useTheme();
@@ -31,10 +32,11 @@ export default function SocialScreen() {
 
   // Brotherhood State
   const [feedScope, setFeedScope] = useState<'brotherhood' | 'global'>('global');
+  const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
   const [posts, setPosts] = useState<any[]>([]);
   const [showCompose, setShowCompose] = useState(false);
   const [newPostText, setNewPostText] = useState('');
-  const [newPostType, setNewPostType] = useState('WIN');
+  const [newPostType, setNewPostType] = useState('win');
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [toastVis, setToastVis] = useState(false);
@@ -60,63 +62,55 @@ export default function SocialScreen() {
 
   useEffect(() => {
     if (activeTab !== 'Brotherhood') return;
-    fetchPosts();
+    
+    let active = true;
+    const timeout = setTimeout(() => {
+      if (active && loading) setLoading(false);
+    }, 6000);
+
+    fetchPosts().then(() => {
+      if (active) clearTimeout(timeout);
+    });
+
     const channel = supabase
       .channel('brotherhood')
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'community_posts' },
         payload => {
           if (!payload.new.is_flagged) {
-            // Only add if it matches scope or we are on global
-            if (feedScope === 'global' || payload.new.user_id === user?.id) {
-              setPosts(prev => [payload.new, ...prev]);
-            }
+            // Re-fetch to get relations (profile) instead of inserting raw payload
+            fetchPosts();
           }
         }
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [activeTab, feedScope]);
+      
+    return () => { 
+      active = false;
+      clearTimeout(timeout);
+      supabase.removeChannel(channel); 
+    };
+  }, [activeTab, feedScope, sortOrder]);
 
   const fetchPosts = async () => {
     setLoading(true);
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('community_posts')
         .select(`
           *,
-          profiles:user_id (
+          profile:profiles!user_id (
             full_name,
-            role,
             avatar_url,
-            rank
+            role
           )
         `)
-        .eq('is_flagged', false);
-
-      if (feedScope === 'brotherhood') {
-         // Show specific fellowship - for now restricted to self + admins or just self
-         query = query.eq('user_id', user?.id); 
-      }
-
-      const { data, error } = await query
-        .order('created_at', { ascending: false })
+        .eq('is_flagged', false)
+        .order('created_at', { ascending: sortOrder === 'oldest' })
         .limit(30);
-        
+
       if (error) throw error;
-
-      // Add virtual community bots if global feed is empty/low
-      let displayPosts = data || [];
-      if (feedScope === 'global' && displayPosts.length < 5) {
-        const bots = [
-          { id: 'b1', content: 'Just finished a 14-hour deep work session. The grind never stops. 🔥', anon_display_name: 'Sigma_Wolf', respect_count: 42, post_type: 'WIN', created_at: new Date().toISOString() },
-          { id: 'b2', content: 'Hit a new PR on deadlifts today. Brotherhood standing strong. 💪', anon_display_name: 'Lift_God', respect_count: 88, post_type: 'MILESTONE', created_at: new Date().toISOString() },
-          { id: 'b3', content: 'Woke up at 4 AM to build. No distractions, just growth.', anon_display_name: 'Early_Bird_99', respect_count: 15, post_type: 'WIN', created_at: new Date().toISOString() },
-        ];
-        displayPosts = [...displayPosts, ...bots];
-      }
-
-      setPosts(displayPosts);
+      setPosts(data || []);
     } catch (err) {
       console.log('Brotherhood fetch error:', err);
       setPosts([]);
@@ -129,6 +123,7 @@ export default function SocialScreen() {
 
   const handlePost = async () => {
     if (!newPostText.trim()) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setPosting(true);
     const anonName = 'Alpha_' + Math.random().toString(36).slice(2, 6).toUpperCase();
     const newP = {
@@ -141,21 +136,36 @@ export default function SocialScreen() {
       image_url: newPostImage
     };
     try {
-      const { error } = await supabase.from('community_posts').insert(newP);
-      if (!error) {
+      const { data, error } = await supabase
+        .from('community_posts')
+        .insert(newP)
+        .select(`*, profile:profiles!user_id (full_name, avatar_url, role)`)
+        .single();
+        
+      if (error) {
+        Alert.alert('Post Failed', error.message);
+      } else if (data) {
         setNewPostText('');
         setNewPostImage(null);
         setShowCompose(false);
         setToastVis(true);
-        fetchPosts();
+        setFeedScope('global');
+        
+        // Optimistic manual insertion for immediate UI feedback
+        setPosts(prev => {
+          if (prev.find(p => p.id === data.id)) return prev;
+          return sortOrder === 'oldest' ? [...prev, data] : [data, ...prev];
+        });
       }
-    } catch (e) { console.error(e); }
+    } catch (e: any) { 
+      Alert.alert('Error', e?.message || 'Something went wrong');
+    }
     setPosting(false);
   };
 
   const handleRespect = async (postId: string, currentCount: number) => {
     if (!user) return;
-    // Check if already respected
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const { data: existing } = await supabase
         .from('post_respects')
@@ -169,6 +179,25 @@ export default function SocialScreen() {
       await supabase.from('post_respects').insert({ user_id: user.id, post_id: postId });
       await supabase.from('community_posts').update({ respect_count: currentCount + 1 }).eq('id', postId);
     } catch (e) { console.error(e); }
+  };
+
+  const renderPostContent = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(@\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return (
+          <Text 
+            key={i} 
+            style={{ color: theme.gold, fontFamily: FONTS.bold }}
+            onPress={() => Alert.alert('Profile', `Viewing ${part}'s profile. (Coming Soon)`)}
+          >
+            {part}
+          </Text>
+        );
+      }
+      return <Text key={i}>{part}</Text>;
+    });
   };
 
   // ─── Profile Audit ─────────────────────────────────────────────────────────
@@ -285,6 +314,17 @@ export default function SocialScreen() {
             <Text style={{ color: feedScope === 'brotherhood' ? theme.gold : theme.textMuted, fontFamily: FONTS.semiBold, fontSize: 12 }}>MY BROTHERHOOD</Text>
           </TouchableOpacity>
         </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
+          <TouchableOpacity 
+            onPress={() => setSortOrder(prev => prev === 'latest' ? 'oldest' : 'latest')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: theme.bgElevated, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: theme.border }}
+          >
+            <Feather name="filter" size={12} color={theme.textMuted} />
+            <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: FONTS.semiBold }}>
+              {sortOrder === 'latest' ? 'LATEST FIRST' : 'OLDEST FIRST'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={[styles.tabContent, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
@@ -302,8 +342,8 @@ export default function SocialScreen() {
           </View>
         ) : (
           posts.map((post: any) => {
-            const name = post.anon_display_name || post.profiles?.full_name || 'Brother';
-            const isAlpha = post.profiles?.role === 'admin' || post.profiles?.rank === 'Elite' || post.id.startsWith('b');
+            const name = post.anon_display_name || post.profile?.full_name || 'Brother';
+            const isAlpha = post.profile?.role === 'admin' || post.profile?.rank === 'Elite' || post.id.startsWith('b');
             return (
               <View key={post.id} style={[styles.postCard, { backgroundColor: theme.bgSurface, borderColor: isAlpha ? theme.gold : theme.border, borderWidth: isAlpha ? 1.5 : 1 }]}>
                 <View style={styles.postHeader}>
@@ -313,14 +353,14 @@ export default function SocialScreen() {
                     </View>
                     <View>
                       <Text style={[styles.postUser, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{name}</Text>
-                      <Text style={{ color: theme.textMuted, fontSize: 9 }}>{post.id.startsWith('b') ? 'Verified Member' : (post.profiles?.rank || 'Novice')}</Text>
+                      <Text style={{ color: theme.textMuted, fontSize: 9 }}>{post.id.startsWith('b') ? 'Verified Member' : (post.profile?.rank || 'Novice')}</Text>
                     </View>
                   </View>
                   <View style={[styles.tagPill, { backgroundColor: theme.gold + '22' }]}>
-                    <Text style={[styles.tagText, { color: theme.gold, fontFamily: FONTS.semiBold }]}>{post.post_type || 'WIN'}</Text>
+                    <Text style={[styles.tagText, { color: theme.gold, fontFamily: FONTS.semiBold, textTransform: 'uppercase' }]}>{post.post_type || 'win'}</Text>
                   </View>
                 </View>
-                <Text style={[styles.postText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{post.content}</Text>
+                <Text style={[styles.postText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{renderPostContent(post.content)}</Text>
                 
                 {post.image_url && (
                   <View style={styles.postImageWrap}>
@@ -345,6 +385,14 @@ export default function SocialScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
+                  <View style={[styles.postActions, { marginLeft: 12 }]}>
+                    <TouchableOpacity onPress={() => Alert.alert("Message", "Direct messaging will execute in the next update!")} style={{ padding: 6 }}>
+                      <Feather name="message-square" size={16} color={theme.textMuted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => Alert.alert("Success", "Added to your Brotherhood network!")} style={{ padding: 6 }}>
+                      <Feather name="user-plus" size={16} color={theme.textMuted} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             );
@@ -352,11 +400,11 @@ export default function SocialScreen() {
         )}
       </ScrollView>
 
-      {/* FAB - Ensure it stays visible above content */}
-      <View style={{ position: 'absolute', bottom: 40, right: 20 }}>
+      {/* FAB - Adjusted position to avoid bottom tab overlap */}
+      <View style={{ position: 'absolute', bottom: 100, right: 20 }}>
         <TouchableOpacity 
           activeOpacity={0.9}
-          onPress={() => setShowCompose(true)} 
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); setShowCompose(true); }} 
           style={[styles.fab, { backgroundColor: theme.gold }]}
         >
           <Feather name="plus" size={32} color="#0A0A0A" />
@@ -452,7 +500,7 @@ export default function SocialScreen() {
                       borderWidth: 1,
                     }]}
                   >
-                    <Text style={{ color: newPostType === t ? theme.gold : theme.textMuted, fontSize: 11, fontFamily: FONTS.semiBold }}>{t}</Text>
+                    <Text style={{ color: newPostType === t ? theme.gold : theme.textMuted, fontSize: 11, fontFamily: FONTS.semiBold, textTransform: 'uppercase' }}>{t}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

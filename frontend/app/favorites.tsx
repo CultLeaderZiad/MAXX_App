@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "../src/context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
@@ -70,7 +71,7 @@ export default function FavoritesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => safeBack()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.gold} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>

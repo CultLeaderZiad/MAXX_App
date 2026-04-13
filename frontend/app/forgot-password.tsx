@@ -9,6 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "../src/context/ThemeContext";
@@ -52,7 +53,7 @@ export default function ForgotPasswordScreen() {
         style={{ flex: 1 }}
       >
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack()}
           style={styles.backBtn}
         >
           <Feather name="arrow-left" size={24} color={theme.gold} />

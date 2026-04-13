@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../src/context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
@@ -173,7 +174,7 @@ export default function LibraryScreen() {
     >
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Feather name="arrow-left" size={24} color={theme.textPrimary} />

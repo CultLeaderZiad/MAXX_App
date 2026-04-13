@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Linking, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { safeBack } from '../lib/safeBack';
 import { Feather, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { Button } from '../src/components/Button';
@@ -53,7 +54,7 @@ export default function SupportScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => safeBack()} style={styles.backBtn}>
           <Feather name="chevron-left" size={24} color={theme.gold} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>SUPPORT</Text>

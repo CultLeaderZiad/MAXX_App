@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { safeBack } from "../../lib/safeBack";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "../../src/context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -45,7 +46,7 @@ export default function EditProfileScreen() {
 
       await fetchProfile();
       Alert.alert("Success", "Profile updated successfully");
-      router.back();
+      safeBack();
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to update profile");
     } finally {
@@ -58,7 +59,7 @@ export default function EditProfileScreen() {
       style={[styles.container, { backgroundColor: theme.bgPrimary }]}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => safeBack()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.gold} />
         </TouchableOpacity>
         <Text

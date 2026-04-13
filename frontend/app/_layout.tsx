@@ -42,11 +42,15 @@ function RootLayoutNav() {
          // Let them stay on reset password
          return;
       }
-      if (profile && !profile.onboarding_completed) {
+
+      // If profile hasn't loaded yet, DON'T navigate — wait for it
+      if (!profile) return;
+
+      if (!profile.onboarding_completed) {
         if (!isOnboarding) {
           router.replace('/goals');
         }
-      } else if (profile?.onboarding_completed) {
+      } else if (profile.onboarding_completed) {
         if (isPublic) {
           router.replace('/(tabs)');
         }

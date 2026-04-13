@@ -96,7 +96,15 @@ export default function HomeScreen() {
   const [error, setError] = useState(false);
   const [nofapTime, setNofapTime] = useState({ d: '0', h: '00', m: '00', s: '00' });
   const [xpVisible, setXpVisible] = useState(false);
+  const [liveXp, setLiveXp] = useState(0);
   const xpAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (profile?.xp !== undefined) {
+      setLiveXp(profile.xp);
+    }
+  }, [profile?.xp]);
 
   // Pulse animation for the Status Hub
   const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -187,9 +195,29 @@ export default function HomeScreen() {
     setXpVisible(true);
     xpAnim.setValue(0);
     Animated.timing(xpAnim, { toValue: 1, duration: 1000, useNativeDriver: true }).start(() => setXpVisible(false));
+    
+    // immediate optimistic update
+    setLiveXp(prev => prev + task.xp);
+    
     await supabase.from('profiles').update({ xp: (profile?.xp || 0) + task.xp }).eq('id', user?.id);
     fetchProfile();
   };
+
+  const rank = profile?.rank || 'Beginner';
+  const curXp = liveXp;
+  let cMin = 0, nReq = 500, nRank = 'Intermediate';
+  if (curXp >= 500) { cMin = 500; nReq = 1500; nRank = 'Pro'; }
+  if (curXp >= 1500) { cMin = 1500; nReq = 5000; nRank = 'World Class'; }
+  const progressPct = Math.max(2, Math.min(100, ((curXp - cMin) / (nReq - cMin)) * 100)); // min 2% so it looks alive for new users
+
+  useEffect(() => {
+    Animated.spring(progressAnim, {
+      toValue: progressPct,
+      friction: 5,
+      tension: 40,
+      useNativeDriver: false
+    }).start();
+  }, [progressPct]);
 
   if (loading) {
     return (
@@ -199,13 +227,6 @@ export default function HomeScreen() {
       </View>
     );
   }
-
-  const rank = profile?.rank || 'Beginner';
-  const curXp = profile?.xp || 0;
-  let cMin = 0, nReq = 1000, nRank = 'Intermediate';
-  if (curXp >= 1000) { cMin = 1000; nReq = 3000; nRank = 'Pro'; }
-  if (curXp >= 3000) { cMin = 3000; nReq = 6000; nRank = 'World Class'; }
-  const progressPct = Math.max(0, Math.min(100, ((curXp - cMin) / (nReq - cMin)) * 100));
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
@@ -273,11 +294,13 @@ export default function HomeScreen() {
 
                 <View style={styles.progressSection}>
                 <View style={styles.progressHeader}>
-                    <Text style={styles.progressText}>PROGRESS TO {nRank}</Text>
+                    <Text style={styles.progressText}>PROGRESS TO {nRank.toUpperCase()}</Text>
                     <Text style={[styles.progressText, { color: theme.gold }]}>{progressPct.toFixed(1)}%</Text>
                 </View>
                 <View style={[styles.progressTrack, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                    <LinearGradient colors={[theme.gold, '#8B7355']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.progressFill, { width: `${progressPct}%` }]} />
+                    <Animated.View style={{ width: progressAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }}>
+                      <LinearGradient colors={[theme.gold, '#8B7355']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: '100%', borderRadius: 4 }} />
+                    </Animated.View>
                 </View>
                 </View>
             </LinearGradient>

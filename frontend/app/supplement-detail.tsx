@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Animated, 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '../lib/safeBack';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
@@ -41,7 +42,7 @@ export default function SupplementDetail() {
           style={[styles.hero, { paddingTop: insets.top + 20 }]}
         >
           <View style={styles.heroNav}>
-            <TouchableOpacity onPress={() => router.back()} style={[styles.heroButtonActive, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+            <TouchableOpacity onPress={() => safeBack()} style={[styles.heroButtonActive, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
               <Feather name="chevron-left" size={24} color="#FFF" />
             </TouchableOpacity>
             <View style={[
@@ -139,21 +140,24 @@ export default function SupplementDetail() {
           <Text style={[styles.sectionTitle, { fontFamily: FONTS.bold, color: theme.textPrimary }]}>ACQUISITION NODES</Text>
           <View style={styles.buyGrid}>
             <TouchableOpacity 
-              onPress={() => Linking.openURL('https://gorillamind.com')}
+              onPress={() => Linking.openURL(supplement.buy_link || 'https://nutrex.com')}
               style={[styles.buyCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}
             >
-              <Text style={[styles.buyName, { color: theme.textPrimary, fontFamily: FONTS.bold }]}>Gorilla Mind</Text>
-              <Text style={[styles.buyDesc, { color: theme.textMuted, fontFamily: FONTS.medium }]}>Optimal Ratios</Text>
-              <Text style={[styles.buyLink, { color: theme.gold || '#C8A96E', fontFamily: FONTS.bold }]}>ACCESS →</Text>
+              <Text style={[styles.buyName, { color: theme.textPrimary, fontFamily: FONTS.bold }]}>{supplement.brand || 'MAXX Official'}</Text>
+              <Text style={[styles.buyDesc, { color: theme.textMuted, fontFamily: FONTS.medium }]}>Verified Supplier</Text>
+              <Text style={[styles.buyLink, { color: theme.gold || '#C8A96E', fontFamily: FONTS.bold }]}>ACCESS PROTOCOL →</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => Linking.openURL('https://thorne.com')}
-              style={[styles.buyCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}
-            >
-              <Text style={[styles.buyName, { color: theme.textPrimary, fontFamily: FONTS.bold }]}>Thorne</Text>
-              <Text style={[styles.buyDesc, { color: theme.textMuted, fontFamily: FONTS.medium }]}>Clinical Grade</Text>
-              <Text style={[styles.buyLink, { color: theme.gold || '#C8A96E', fontFamily: FONTS.bold }]}>ACCESS →</Text>
-            </TouchableOpacity>
+            
+            {(!supplement.brand || supplement.brand === 'Nutrex Research') && (
+              <TouchableOpacity 
+                onPress={() => Linking.openURL('https://thorne.com')}
+                style={[styles.buyCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}
+              >
+                <Text style={[styles.buyName, { color: theme.textPrimary, fontFamily: FONTS.bold }]}>Thorne</Text>
+                <Text style={[styles.buyDesc, { color: theme.textMuted, fontFamily: FONTS.medium }]}>Clinical Alternative</Text>
+                <Text style={[styles.buyLink, { color: theme.gold || '#C8A96E', fontFamily: FONTS.bold }]}>ACCESS →</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {!hasAccess && (

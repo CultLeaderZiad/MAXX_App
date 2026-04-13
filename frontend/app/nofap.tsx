@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { safeBack } from "../lib/safeBack";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "../src/context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
@@ -36,6 +37,7 @@ export default function NoFapScreen() {
   const [streakDays, setStreakDays] = useState(0);
   const [loading, setLoading] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [nofapTime, setNofapTime] = useState({ d: '0', h: '00', m: '00', s: '00' });
 
   useEffect(() => {
     Animated.loop(
@@ -58,11 +60,32 @@ export default function NoFapScreen() {
 
   useEffect(() => {
     const nofapStreak = profile?.streaks?.find((s: any) => s.type === "nofap");
-    if (nofapStreak && nofapStreak.start_date) {
+    if (!nofapStreak || !nofapStreak.start_date) {
+      setNofapTime({ d: '0', h: '00', m: '00', s: '00' });
+      setStreakDays(0);
+      return;
+    }
+    
+    const interval = setInterval(() => {
       const start = new Date(nofapStreak.start_date).getTime();
       const now = new Date().getTime();
-      setStreakDays(Math.floor((now - start) / (1000 * 60 * 60 * 24)));
-    }
+      const diff = now - start;
+      if (diff < 0) return;
+      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const m = Math.floor((diff / (1000 * 60)) % 60);
+      const s = Math.floor((diff / 1000) % 60);
+      
+      setNofapTime({
+        d: d.toString(),
+        h: h.toString().padStart(2, '0'),
+        m: m.toString().padStart(2, '0'),
+        s: s.toString().padStart(2, '0')
+      });
+      setStreakDays(d);
+    }, 1000);
+    
+    return () => clearInterval(interval);
   }, [profile]);
 
   const handleRelapse = () => {
@@ -129,7 +152,7 @@ export default function NoFapScreen() {
       testID="nofap-screen"
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => safeBack()} style={styles.backBtn}>
           <Feather name="chevron-left" size={24} color={theme.gold} />
         </TouchableOpacity>
         <Text
@@ -160,6 +183,14 @@ export default function NoFapScreen() {
             <Text style={[styles.streakLabel, { color: theme.textMuted }]}>
               DAYS
             </Text>
+          </View>
+          
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 30 }}>
+              <View style={{ alignItems: 'center', minWidth: 50 }}><Text style={{ fontSize: 26, fontFamily: FONTS.cinzelBold, color: theme.gold }}>{nofapTime.h}</Text><Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 6, letterSpacing: 1.5, fontFamily: FONTS.bold }}>HRS</Text></View>
+              <Text style={{ color: 'rgba(255,255,255,0.1)', fontSize: 22, marginBottom: 18 }}>:</Text>
+              <View style={{ alignItems: 'center', minWidth: 50 }}><Text style={{ fontSize: 26, fontFamily: FONTS.cinzelBold, color: theme.gold }}>{nofapTime.m}</Text><Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 6, letterSpacing: 1.5, fontFamily: FONTS.bold }}>MIN</Text></View>
+              <Text style={{ color: 'rgba(255,255,255,0.1)', fontSize: 22, marginBottom: 18 }}>:</Text>
+              <View style={{ alignItems: 'center', minWidth: 50 }}><Text style={{ fontSize: 26, fontFamily: FONTS.cinzelBold, color: theme.gold, width: 34, textAlign: 'center' }}>{nofapTime.s}</Text><Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 6, letterSpacing: 1.5, fontFamily: FONTS.bold }}>SEC</Text></View>
           </View>
         </View>
 

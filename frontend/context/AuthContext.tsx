@@ -127,7 +127,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setProfile(newProfile);
         }
       } else if (error) {
-        console.error('Error fetching profile:', error);
+        console.warn('Profile fetch error (retrying once):', error.message);
+        // Retry once — handles transient RLS / network issues
+        const { data: retryData, error: retryError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (retryData && !retryError) {
+          setProfile(retryData);
+        } else {
+          console.error('Profile retry also failed:', retryError?.message);
+          // Fallback: build a stub profile from auth metadata so the user
+          // is NOT dumped to the landing page while the DB recovers
+          const { data: userData } = await supabase.auth.getUser();
+          const meta = userData?.user?.user_metadata;
+          const userEmail = userData?.user?.email;
+          setProfile({
+            id: userId,
+            full_name: meta?.full_name || 'Brother',
+            role: userEmail === ADMIN_EMAIL ? 'admin' : 'user',
+            xp: 0,
+            power_level: 0,
+            onboarding_completed: true, // Assume true to keep them out of onboarding
+            level_title: 'Beginner',
+            goals: [],
+            weak_spots: [],
+          });
+        }
       } else {
         setProfile(data);
       }
