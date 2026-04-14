@@ -3,32 +3,36 @@
     "name": "MAXX",
     "slug": "maxx-app",
     "version": "1.0.0",
-    "owner": "cultleaderziad",
-    "updates": {
-      "url": "https://u.expo.dev/f9dbec40-974b-4ac1-8ed7-6cfd8eea1272"
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "orientation": "portrait",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0A",
+    "owner": "cultleaderziad",
     "icon": "./assets/images/icon.png",
     "scheme": "maxx",
-    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0A0A0A",
+      "resizeMode": "contain",
+      "image": "./assets/images/splash-image.png"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ziad.maxxapp"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
       },
+      "package": "com.ziad.maxxapp",
+      "versionCode": 1,
       "edgeToEdgeEnabled": true,
-      "package": "com.cultleaderziad.maxxapp"
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +41,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-image-picker",
       [
         "expo-splash-screen",
         {
@@ -56,6 +61,14 @@
       "eas": {
         "projectId": "f9dbec40-974b-4ac1-8ed7-6cfd8eea1272"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f9dbec40-974b-4ac1-8ed7-6cfd8eea1272",
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

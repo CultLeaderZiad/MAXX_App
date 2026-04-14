@@ -1,15 +1,28 @@
 {
-  "cli": { "version": ">= 7.0.0" },
+  "cli": {
+    "version": ">= 7.0.0"
+  },
   "build": {
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://kfnizyhcanjrymjwukqz.supabase.co"
       }
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal"
       }
     }
   }

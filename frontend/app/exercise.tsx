@@ -211,6 +211,8 @@ export default function ExerciseScreen() {
     pro_tip?: string;
     youtube_id?: string;
     gif_url?: string;
+    description?: string;
+    coach_note?: string;
   }>();
 
   const totalSets = parseInt(params.sets || "3");

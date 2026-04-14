@@ -136,18 +136,20 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Cinzel_700Bold, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
 
   useEffect(() => {
-    async function checkUpdates() {
+    const checkForUpdates = async () => {
+      if (__DEV__) return
       try {
         const update = await Updates.checkForUpdateAsync()
         if (update.isAvailable) {
           await Updates.fetchUpdateAsync()
           await Updates.reloadAsync()
         }
-      } catch (e) {
-        console.log('Update check failed:', e)
+      } catch (err) {
+        console.log('Update check skipped:', err)
       }
     }
-    if (!__DEV__) checkUpdates()
+    
+    checkForUpdates()
   }, []);
 
   if (!fontsLoaded) return null;
