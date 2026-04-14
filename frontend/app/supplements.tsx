@@ -59,6 +59,11 @@ export default function SupplementCatalog() {
     setSelectedCategory(tab);
   };
 
+  const toggleViewMode = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setViewMode(prev => prev === 'list' ? 'deck' : 'list');
+  };
+
   const checkWishlist = async (itemId: string) => {
     if (!user) return false;
     try {
