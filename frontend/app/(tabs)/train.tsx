@@ -208,10 +208,21 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
         .order("exercise_order");
       
       if (!exErr && allEx) {
+        // Deduplicate exercises by exercise_key within each program
         const exMap: Record<string, any[]> = {};
         allEx.forEach(ex => {
           if (!exMap[ex.program_id]) exMap[ex.program_id] = [];
           exMap[ex.program_id].push(ex);
+        });
+        // Remove duplicates per program
+        Object.keys(exMap).forEach(progId => {
+          const seen = new Set<string>();
+          exMap[progId] = exMap[progId].filter(ex => {
+            const key = ex.exercise_key || ex.id;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
         });
         setExercises(exMap);
       }
