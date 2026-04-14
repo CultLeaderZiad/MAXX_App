@@ -22,12 +22,12 @@ import { WebView } from "react-native-webview";
 import { useTheme } from "../src/context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
+import { getYouTubeHTML } from "../lib/youtubePlayer";
 import { FONTS, SPACING, RADIUS } from "../src/constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// YouTube refinement logic: use URI source for better header handling
-const getYoutubeUri = (id: string) => `https://www.youtube.com/embed/${id}?autoplay=1&modestbranding=1&rel=0&showinfo=0&mute=0&playsinline=1&origin=https://www.youtube.com`;
+
 
 export default function LibraryVideoScreen() {
   const { theme } = useTheme();
@@ -135,7 +135,7 @@ export default function LibraryVideoScreen() {
     });
   };
 
-  const videoUri = video?.youtube_id ? getYoutubeUri(video.youtube_id) : null;
+  const videoHtml = video?.youtube_id ? getYouTubeHTML(video.youtube_id) : null;
 
   // ─── Early returns (AFTER all hooks) ──────────────────────────────
   if (loading) {
@@ -173,47 +173,18 @@ export default function LibraryVideoScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
       <View style={styles.videoContainer}>
-          {webViewError ? (
-            <TouchableOpacity onPress={openInYouTube} style={styles.errorFallback}>
-              <Feather name="youtube" size={48} color={theme.gold} />
-              <Text style={{ color: theme.gold, fontFamily: FONTS.bold, marginTop: 12, fontSize: 14 }}>OPEN IN YOUTUBE</Text>
-              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>Player failed to load — tap to watch externally</Text>
-            </TouchableOpacity>
-          ) : !isPlaying ? (
-            <TouchableOpacity onPress={() => setIsPlaying(true)} style={{flex: 1, backgroundColor: '#000'}} activeOpacity={0.9}>
+            <TouchableOpacity onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${video.youtube_id}`)} style={{flex: 1, backgroundColor: '#000'}} activeOpacity={0.9}>
               <Image 
-                source={{ uri: video?.thumbnail_url || `https://img.youtube.com/vi/${video?.youtube_id}/hqdefault.jpg` }}
+                source={{ uri: video?.thumbnail_url || `https://img.youtube.com/vi/${video?.youtube_id}/maxresdefault.jpg` }}
                 style={{ width: '100%', height: '100%', resizeMode: 'cover', opacity: 0.7 }}
               />
               <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
                 <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: theme.gold }}>
-                  <Feather name="play" size={28} color={theme.gold} style={{ marginLeft: 4 }} />
+                  <Feather name="external-link" size={28} color={theme.gold} />
                 </View>
+                <Text style={{ color: theme.gold, fontFamily: FONTS.bold, marginTop: 12, letterSpacing: 1 }}>WATCH ON YOUTUBE</Text>
               </View>
             </TouchableOpacity>
-          ) : (
-            <WebView
-              source={{ 
-                  uri: videoUri || '',
-                  headers: {
-                    'Referer': 'https://www.youtube.com',
-                    'Origin': 'https://www.youtube.com'
-                  }
-              }}
-              style={styles.webview}
-              scrollEnabled={false}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              allowsInlineMediaPlayback={true}
-              mediaPlaybackRequiresUserAction={false}
-              onError={() => setWebViewError(true)}
-              onHttpError={() => setWebViewError(true)}
-              startInLoadingState={true}
-              renderLoading={() => <ActivityIndicator size="large" color={theme.gold} style={{ flex: 1, backgroundColor: '#000' }} />}
-              userAgent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-              allowsFullscreenVideo={true}
-            />
-          )}
         </View>
 
         <View style={styles.content}>
@@ -257,10 +228,18 @@ export default function LibraryVideoScreen() {
               </View>
           </View>
 
-          <TouchableOpacity onPress={openInYouTube} style={[styles.ytFallbackBtn, { borderColor: theme.border }]}>
-            <Feather name="external-link" size={16} color={theme.gold} />
-            <Text style={{ color: theme.gold, fontFamily: FONTS.medium, fontSize: 13, marginLeft: 8 }}>Watch in YouTube App</Text>
-          </TouchableOpacity>
+          <View style={{ marginTop: 24, padding: 16, backgroundColor: theme.bgElevated, borderRadius: 8, borderWidth: 1, borderColor: theme.border }}>
+            <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: FONTS.semiBold, marginBottom: 8 }}>
+              Playback Notice
+            </Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 13, lineHeight: 20 }}>
+              Because YouTube frequently blocks embedded videos in mobile apps with "Error code: 152-4", we now redirect you straight to the YouTube app. Tap the thumbnail or the button below to watch the video seamlessly.
+            </Text>
+            <TouchableOpacity onPress={openInYouTube} style={[styles.ytFallbackBtn, { borderColor: theme.gold, backgroundColor: theme.gold + '22', marginTop: 16 }]}>
+              <Feather name="youtube" size={18} color={theme.gold} />
+              <Text style={{ color: theme.gold, fontFamily: FONTS.bold, fontSize: 13, marginLeft: 8, letterSpacing: 1 }}>OPEN IN YOUTUBE APP</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.divider} />
 

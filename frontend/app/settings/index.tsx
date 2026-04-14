@@ -230,6 +230,14 @@ export default function SettingsScreen() {
           <TrialBanner />
         </View>
         <Section title="ACCOUNT">
+          {profile?.role === "admin" && (
+            <Item
+              label="Super Admin Dashboard"
+              onPress={() => router.push("/admin")}
+              icon="shield"
+              color={theme.gold}
+            />
+          )}
           <Item
             label="Edit Profile"
             onPress={() => router.push("/settings/edit-profile" as any)}

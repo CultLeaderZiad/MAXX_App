@@ -12,14 +12,14 @@ import {
   ActivityIndicator,
   Share,
   Linking,
-  Alert
+  Alert,
+  Image
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { safeBack } from "../lib/safeBack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { WebView } from "react-native-webview";
 import { useTheme } from "../src/context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "../src/components/Button";
@@ -27,6 +27,7 @@ import { XPToast } from "../src/components/XPToast";
 import { CaptainCard } from "../src/components/CaptainCard";
 import { FONTS, SPACING, RADIUS } from "../src/constants/theme";
 import { supabase } from "../lib/supabase";
+import { getYouTubeHTML, FALLBACK_VIDEOS } from "../lib/youtubePlayer";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // Maintain 16:9 ratio for video
@@ -207,10 +208,9 @@ export default function ExerciseScreen() {
     reps: string;
     rest: string;
     xp: string;
-    description?: string;
-    coach_note?: string;
     pro_tip?: string;
     youtube_id?: string;
+    gif_url?: string;
   }>();
 
   const totalSets = parseInt(params.sets || "3");
@@ -221,6 +221,7 @@ export default function ExerciseScreen() {
   const [showXP, setShowXP] = useState(false);
   const [showGuidelines, setShowGuidelines] = useState(true);
   const [webViewLoading, setWebViewLoading] = useState(true);
+  const [videoIndex, setVideoIndex] = useState(0);
 
   // Timer state
   const [timeLeft, setTimeLeft] = useState(0);
@@ -231,7 +232,7 @@ export default function ExerciseScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Get the video for this exercise
-  const videoData = params.youtube_id
+  const baseVideoData = params.youtube_id
     ? ({
         videoId: params.youtube_id,
         title: params.name || "Dynamic Force Protocol",
@@ -240,6 +241,22 @@ export default function ExerciseScreen() {
         commonMistakes: ["Compromising joint integrity"],
       } as ExerciseVideoEntry)
     : findVideoForExercise(params.name || "");
+
+  // Build fallback video IDs list
+  const exerciseKey = Object.keys(EXERCISE_VIDEO_LIBRARY).find(k =>
+    (params.name || '').toLowerCase().includes(k) || k.includes((params.name || '').toLowerCase())
+  ) || '';
+  const fallbackIds = FALLBACK_VIDEOS[exerciseKey] || [baseVideoData.videoId];
+  const currentVideoId = fallbackIds[videoIndex] || baseVideoData.videoId;
+  const videoData = { ...baseVideoData, videoId: currentVideoId };
+
+  const tryNextVideo = () => {
+    if (videoIndex < fallbackIds.length - 1) {
+      setVideoIndex(prev => prev + 1);
+    } else {
+      Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent(params.name || 'exercise form')}`);
+    }
+  };
 
   // Timer effect
   useEffect(() => {
@@ -349,29 +366,66 @@ export default function ExerciseScreen() {
 
         {phase === "video" ? (
           <View style={styles.videoSection}>
-            <View style={[styles.videoWrapper, { borderColor: theme.gold + "15", backgroundColor: "#000" }]}>
-              {webViewLoading && (
-                  <View style={styles.videoLoader}>
-                      <ActivityIndicator color={theme.gold} size="large" />
+            <View style={[styles.videoWrapper, { borderColor: theme.gold + "15", backgroundColor: "#000", overflow: 'hidden' }]}>
+              {params.gif_url ? (
+                <Image 
+                  source={{ uri: params.gif_url }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="contain"
+                />
+              ) : (
+                <>
+                  <Image 
+                    source={{ uri: `https://img.youtube.com/vi/${currentVideoId}/maxresdefault.jpg` }}
+                    style={{ width: '100%', height: '100%', opacity: 0.6 }}
+                    resizeMode="cover"
+                  />
+                  <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
+                    <TouchableOpacity 
+                       onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${currentVideoId}`)}
+                       style={{ width: 60, height: 60, backgroundColor: 'rgba(200, 169, 110, 0.3)', borderRadius: 30, justifyContent: 'center', alignItems: 'center' }}
+                    >
+                      <Feather name="play" size={24} color={theme.gold} style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
                   </View>
+                </>
               )}
-              <WebView
-                allowsFullscreenVideo
-                allowsInlineMediaPlayback
-                javaScriptEnabled
-                domStorageEnabled
-                scrollEnabled={false}
-                onLoad={() => setWebViewLoading(false)}
-                userAgent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                source={{
-                    uri: `https://www.youtube.com/embed/${videoData.videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&origin=https://www.youtube.com`,
-                    headers: {
-                        'Referer': 'https://www.youtube.com',
-                        'Origin': 'https://www.youtube.com'
-                    }
-                }}
-                style={{ flex: 1, backgroundColor: '#000' }}
-              />
+            </View>
+            
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <TouchableOpacity
+                onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${currentVideoId}`)}
+                style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, backgroundColor: theme.gold, borderRadius: 8, borderWidth: 1, borderColor: theme.gold }]}
+              >
+                <Feather name="external-link" size={16} color="#000" />
+                <Text style={{ color: '#000', fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 1 }}>OPEN YOUTUBE</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={tryNextVideo}
+                style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, backgroundColor: theme.bgElevated, borderRadius: 8, borderWidth: 1, borderColor: theme.border }]}
+              >
+                <Feather name="refresh-cw" size={16} color={theme.textPrimary} />
+                <Text style={{ color: theme.textPrimary, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 1 }}>
+                  {videoIndex < fallbackIds.length - 1 ? "NEXT VIDEO" : "SEARCH YT"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+                    <View style={{ marginTop: 16, padding: 12, backgroundColor: theme.bgElevated, borderRadius: 8, borderWidth: 1, borderColor: theme.border }}>
+              <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: FONTS.semiBold, marginBottom: 4 }}>
+                Direct Video Link
+              </Text>
+              <TouchableOpacity onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${currentVideoId}`)}>
+                <Text style={{ color: theme.gold, fontSize: 12, textDecorationLine: 'underline', marginBottom: 12 }}>
+                  https://www.youtube.com/watch?v={currentVideoId}
+                </Text>
+              </TouchableOpacity>
+              <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: FONTS.semiBold, marginBottom: 4 }}>
+                Video Error?
+              </Text>
+              <Text style={{ color: theme.textMuted, fontSize: 12, lineHeight: 18 }}>
+                YouTube blocks some videos from playing inside apps (Error 152-4). Tap the link above or "OPEN YOUTUBE" to watch it directly. You can also use the "NEXT VIDEO" button to try an alternative demonstration.
+              </Text>
             </View>
 
             {/* Caption bar + Share/Save buttons */}
@@ -418,11 +472,13 @@ export default function ExerciseScreen() {
             </View>
 
             <View style={styles.guideContainer}>
-                <Text style={[styles.guideHeader, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>TACTICAL PROTOCOL</Text>
-                {videoData.guidelines.map((g, i) => (
-                    <View key={i} style={styles.bulletRow}>
-                        <View style={[styles.bulletPoint, { backgroundColor: theme.gold }]} />
-                        <Text style={[styles.bulletLabel, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>{g}</Text>
+                <Text style={[styles.guideHeader, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>3-STEP BIO-LINK</Text>
+                {(videoData.guidelines.length > 0 ? videoData.guidelines : ["Initialize biological core", "Execute with maximal tension", "Control the negative phase"]).slice(0, 3).map((g, i) => (
+                    <View key={i} style={[styles.bulletRow, { backgroundColor: theme.bgSurface, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.border }]}>
+                        <View style={[styles.stepCircle, { backgroundColor: theme.gold }]}>
+                          <Text style={{ color: '#000', fontFamily: FONTS.bold, fontSize: 10 }}>{i + 1}</Text>
+                        </View>
+                        <Text style={[styles.bulletLabel, { color: theme.textPrimary, fontFamily: FONTS.semiBold, flex: 1 }]}>{g}</Text>
                     </View>
                 ))}
 
@@ -523,9 +579,9 @@ const styles = StyleSheet.create({
   videoLoader: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 10, backgroundColor: '#000' },
   guideContainer: { marginTop: 30 },
   guideHeader: { fontSize: 15, letterSpacing: 3, marginBottom: 20 },
-  bulletRow: { flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 14 },
-  bulletPoint: { width: 6, height: 6, borderRadius: 3 },
-  bulletLabel: { fontSize: 14, lineHeight: 22 },
+  bulletRow: { flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 14 },
+  stepCircle: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  bulletLabel: { fontSize: 13, lineHeight: 20 },
   proTipBox: { marginTop: 20, padding: 20, borderRadius: 18, borderLeftWidth: 4 },
   confirmBtn: { marginTop: 40, height: 60, borderRadius: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   shareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 2 },

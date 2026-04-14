@@ -444,7 +444,7 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
                   <TouchableOpacity
                     onPress={() =>
                       router.push(
-                        `/exercise?id=${ex.id}&programId=${prog.id}&name=${encodeURIComponent(ex.name || ex.title)}&sets=${ex.sets || 3}&hold=${ex.hold_seconds || 45}&rest=${ex.rest_seconds || 30}&xp=${ex.xp_reward || 30}&description=${encodeURIComponent(ex.description || "")}&coach_note=${encodeURIComponent(ex.coach_note || "")}&pro_tip=${encodeURIComponent(ex.pro_tip || "")}`,
+                        `/exercise?id=${ex.id}&programId=${prog.id}&name=${encodeURIComponent(ex.name || ex.title)}&sets=${ex.sets || 3}&hold=${ex.hold_seconds || 45}&rest=${ex.rest_seconds || 30}&xp=${ex.xp_reward || 30}&description=${encodeURIComponent(ex.description || "")}&coach_note=${encodeURIComponent(ex.coach_note || "")}&pro_tip=${encodeURIComponent(ex.pro_tip || "")}&gif_url=${encodeURIComponent(ex.gif_url || "")}&youtube_id=${encodeURIComponent(ex.youtube_id || ex.videoId || "")}`,
                       )
                     }
                     style={[styles.startBtn, { backgroundColor: theme.gold }]}
@@ -751,7 +751,7 @@ function BodyTab({ theme }: { theme: any }) {
                 ) : null}
                 <TouchableOpacity
                   onPress={() => router.push(
-                    `/exercise?id=${ex.id}&programId=${prog.id}&name=${encodeURIComponent(ex.name || ex.title)}&sets=${ex.sets || 3}&hold=${ex.hold_seconds || 45}&rest=${ex.rest_seconds || 30}&xp=${ex.xp_reward || 30}&description=${encodeURIComponent(ex.description || '')}&coach_note=${encodeURIComponent(ex.coach_note || '')}&pro_tip=${encodeURIComponent(ex.pro_tip || '')}` as any,
+                    `/exercise?id=${ex.id}&programId=${prog.id}&name=${encodeURIComponent(ex.name || ex.title)}&sets=${ex.sets || 3}&hold=${ex.hold_seconds || 45}&rest=${ex.rest_seconds || 30}&xp=${ex.xp_reward || 30}&description=${encodeURIComponent(ex.description || '')}&coach_note=${encodeURIComponent(ex.coach_note || '')}&pro_tip=${encodeURIComponent(ex.pro_tip || '')}&gif_url=${encodeURIComponent(ex.gif_url || '')}&youtube_id=${encodeURIComponent(ex.youtube_id || ex.videoId || '')}` as any,
                   )}
                   style={[styles.startBtn, { backgroundColor: theme.gold }]}
                 >

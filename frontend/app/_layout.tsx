@@ -46,6 +46,14 @@ function RootLayoutNav() {
       // If profile hasn't loaded yet, DON'T navigate — wait for it
       if (!profile) return;
 
+      // Skip onboarding for admins entirely
+      if (profile.role === 'admin') {
+        if (isPublic || isOnboarding) {
+          router.replace('/(tabs)');
+        }
+        return;
+      }
+
       if (!profile.onboarding_completed) {
         if (!isOnboarding) {
           router.replace('/goals');

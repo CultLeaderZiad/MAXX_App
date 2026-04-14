@@ -26,7 +26,7 @@ import { Button } from "../src/components/Button";
 
 import { FONTS, SPACING } from "../src/constants/theme";
 
-const OTP_LENGTH = 8;
+const OTP_LENGTH = 6;
 
 export default function OTPScreen() {
   const { theme } = useTheme();

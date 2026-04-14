@@ -133,15 +133,16 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     if (!loading && user) {
-      if (!profile?.onboarding_completed) {
+      // Skip onboarding for admins
+      if (profile?.role === 'admin') {
+        router.replace("/(tabs)");
+      } else if (!profile?.onboarding_completed) {
         router.replace("/goals");
       } else {
-        // If user exists but not onboarded, maybe go to goals?
-        // For now let's just go to tabs or handle it in AuthContext
         router.replace("/(tabs)");
       }
     }
-  }, [loading, user, profile?.onboarding_completed]);
+  }, [loading, user, profile?.role, profile?.onboarding_completed]);
 
   const particles = [
     { delay: 0, x: width * 0.15 },

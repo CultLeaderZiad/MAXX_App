@@ -243,6 +243,13 @@ export default function RegisterWizard() {
         fullName,
         finalPhone,
         dobStr,
+        {
+          height_cm: heightCm ? parseInt(heightCm) : null,
+          weight_kg: weightKg ? parseInt(weightKg) : null,
+          body_type: bodyType || null,
+          fitness_goals: selectedGoals,
+          play_type: playType || null,
+        }
       );
 
       if (error) throw error;
@@ -261,25 +268,11 @@ export default function RegisterWizard() {
           [
             {
               text: "Go to Login",
-              onPress: () => router.replace("/login"),
+              onPress: () => setTimeout(() => router.replace("/login"), 100),
             },
           ],
         );
         return;
-      }
-
-      // Save additional profile data to Supabase after signup
-      if (data?.user?.id) {
-        await supabase
-          .from("profiles")
-          .update({
-            height_cm: heightCm ? parseInt(heightCm) : null,
-            weight_kg: weightKg ? parseInt(weightKg) : null,
-            body_type: bodyType || null,
-            fitness_goals: selectedGoals,
-            play_type: playType || null,
-          })
-          .eq("id", data.user.id);
       }
 
       router.push({ pathname: "/otp", params: { email, mode: "signup" } });
@@ -289,7 +282,7 @@ export default function RegisterWizard() {
         Alert.alert(
           "Account Exists",
           "This email is already registered. Please sign in.",
-          [{ text: "Go to Login", onPress: () => router.replace("/login") }],
+          [{ text: "Go to Login", onPress: () => setTimeout(() => router.replace("/login"), 100) }],
         );
       } else {
         setError(e.message || "An unexpected error occurred");

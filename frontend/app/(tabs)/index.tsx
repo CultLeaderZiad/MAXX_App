@@ -100,6 +100,8 @@ export default function HomeScreen() {
   const xpAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
+
+
   useEffect(() => {
     if (profile?.xp !== undefined) {
       setLiveXp(profile.xp);
@@ -163,25 +165,85 @@ export default function HomeScreen() {
     }
   };
 
+  // ── Retention Protocol: 7-Day Trial Countdown ──
   useEffect(() => {
-    const nofap = streak?.find((s: any) => s.streak_type === 'nofap');
-    if (!nofap) {
+    if (!profile?.created_at) {
       setNofapTime({ d: '0', h: '00', m: '00', s: '00' });
       return;
     }
+    
     const interval = setInterval(() => {
       const now = new Date().getTime();
-      const last = new Date(nofap.last_activity_date).getTime();
-      const diff = now - (last - (nofap.current_streak * 24 * 60 * 60 * 1000));
-      if (diff < 0) return;
+      const trialEndStr = profile.trial_end || profile.created_at;
+      const trialEnds = profile.trial_end 
+        ? new Date(profile.trial_end).getTime() 
+        : new Date(profile.created_at).getTime() + (7 * 24 * 60 * 60 * 1000);
+        
+      const diff = trialEnds - now;
+      
+      if (diff < 0) {
+        setNofapTime({ d: '0', h: '00', m: '00', s: '00' });
+        return;
+      }
+      
       const d = Math.floor(diff / (1000 * 60 * 60 * 24));
       const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
       const m = Math.floor((diff / (1000 * 60)) % 60);
       const s = Math.floor((diff / 1000) % 60);
       setNofapTime({ d: d.toString(), h: h.toString().padStart(2, '0'), m: m.toString().padStart(2, '0'), s: s.toString().padStart(2, '0') });
     }, 1000);
+    
     return () => clearInterval(interval);
-  }, [streak]);
+  }, [profile?.created_at]);
+
+  // ── Real-time XP & Missions System ──
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const profileChannel = supabase
+      .channel(`profile_changes_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.new && payload.new.xp !== undefined) {
+             setLiveXp(payload.new.xp);
+             xpAnim.setValue(0);
+             setXpVisible(true);
+             Animated.timing(xpAnim, { toValue: 1, duration: 1500, useNativeDriver: true }).start(() => setXpVisible(false));
+          }
+        }
+      )
+      .subscribe();
+
+    const missionsChannel = supabase
+      .channel(`mission_changes_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'daily_missions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            setMissions(payload.new);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profileChannel);
+      supabase.removeChannel(missionsChannel);
+    };
+  }, [user?.id]);
 
   const toggleMission = async (id: string) => {
     if (!missions) return;
@@ -312,7 +374,7 @@ export default function HomeScreen() {
           <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/nofap')} style={[styles.counterCard, { backgroundColor: '#000', borderColor: theme.gold + '22' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                 <View style={{ height: 1, flex: 1, backgroundColor: 'rgba(200,169,110,0.1)' }} />
-                <Text style={[styles.counterLabel, { color: theme.textMuted, marginBottom: 0 }]}>RETENTION PROTOCOL</Text>
+                <Text style={[styles.counterLabel, { color: theme.textMuted, marginBottom: 0 }]}>7-DAY TRIAL REMAINING</Text>
                 <View style={{ height: 1, flex: 1, backgroundColor: 'rgba(200,169,110,0.1)' }} />
             </View>
             <View style={styles.timerRow}>
@@ -326,6 +388,27 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
         </AnimCard>
+
+        {/* Discovery Checklist - Retention Driver */}
+        {parseInt(nofapTime.d) > 0 && (
+          <AnimCard delay={250} style={styles.sectionWrap}>
+             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={{ color: theme.gold, fontFamily: FONTS.cinzelBold, fontSize: 13, letterSpacing: 1 }}>ALPHA ONBOARDING</Text>
+                <Text style={{ color: theme.textMuted, fontSize: 10 }}>{Math.round(( (profile?.xp || 0) / 500) * 100)}% COMPLETE</Text>
+             </View>
+             {[
+               { id: 'body', title: 'Complete Body Calculations', icon: 'monitor', done: !!profile?.weight_kg, link: '/calculator' },
+               { id: 'goal', title: 'Lock In Your Fitness Goals', icon: 'target', done: (profile?.goals?.length || 0) > 0, link: '/goals' },
+               { id: 'lib', title: 'Watch Alpha Library Video', icon: 'play-circle', done: false, link: '/library' },
+             ].map(item => (
+               <TouchableOpacity key={item.id} onPress={() => router.push(item.link as any)} style={[styles.checklistRow, { backgroundColor: theme.bgSurface, borderColor: item.done ? theme.gold + '44' : theme.border + '22' }]}>
+                 <Feather name={item.done ? "check-circle" : item.icon as any} size={16} color={item.done ? theme.gold : theme.textMuted} />
+                 <Text style={{ color: item.done ? theme.textMuted : theme.textPrimary, fontSize: 13, marginLeft: 12, flex: 1 }}>{item.title}</Text>
+                 {!item.done && <Feather name="chevron-right" size={14} color={theme.textMuted} />}
+               </TouchableOpacity>
+             ))}
+          </AnimCard>
+        )}
 
         <View style={{ paddingHorizontal: SPACING.lg, marginBottom: 10 }}>
           <TrialBanner />
@@ -438,7 +521,15 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 },
   sectionTitle: { fontSize: 15, letterSpacing: 3 },
   badge: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 12 },
-  missionList: { gap: 14 },
+  missionList: { gap: 10 },
+  checklistRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 16, 
+    borderRadius: 12, 
+    borderWidth: 1,
+    marginBottom: 8 
+  },
   missionCard: { flexDirection: 'row', alignItems: 'center', padding: 22, borderRadius: 28, borderWidth: 1, gap: 18 },
   missionCheck: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
   missionContent: { flex: 1 },

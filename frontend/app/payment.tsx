@@ -17,6 +17,7 @@ import { Button } from "../src/components/Button";
 import { FONTS, SPACING, RADIUS } from "../src/constants/theme";
 import { supabase } from "../lib/supabase";
 import { api } from "../src/services/api";
+import { safeBack } from "../lib/safeBack";
 
 const PAYMENT_METHODS = [
   { id: "apple_pay", label: "Apple Pay", icon: "smartphone" as const, badge: "Recommended" },
@@ -70,7 +71,7 @@ export default function PaymentScreen() {
         [
           {
             text: "START TRAINING",
-            onPress: () => router.replace("/(tabs)/train"),
+            onPress: () => setTimeout(() => router.replace("/(tabs)/train"), 100),
           },
         ],
       );
@@ -94,8 +95,7 @@ export default function PaymentScreen() {
         <TouchableOpacity
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            if (router.canGoBack()) router.back();
-            else router.replace("/(tabs)");
+            safeBack();
           }}
           style={styles.backBtn}
         >

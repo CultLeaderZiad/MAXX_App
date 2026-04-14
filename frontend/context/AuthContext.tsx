@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 
 const ADMIN_EMAIL = 'cultleaderzoz.dev@gmail.com';
 
-type Profile = {
+export type Profile = {
   id: string;
   full_name: string;
   role: string;
@@ -14,6 +14,11 @@ type Profile = {
   phone?: string;
   date_of_birth?: string;
   onboarding_completed?: boolean;
+  xp?: number;
+  power_level?: number;
+  plan?: string;
+  subscription_status?: string;
+  trial_end?: string;
   [key: string]: any;
 };
 
@@ -29,6 +34,7 @@ type AuthContextType = {
     fullName: string,
     phone: string,
     dob: string,
+    extraData?: any
   ) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -49,6 +55,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     let mounted = true;
 
+    let profileSubscription: any = null;
+
+    const setupProfileListener = (userId: string) => {
+      if (profileSubscription) profileSubscription.unsubscribe();
+      profileSubscription = supabase
+        .channel(`profile:${userId}`)
+        .on('postgres_changes', { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'profiles', 
+          filter: `id=eq.${userId}` 
+        }, payload => {
+          setProfile(payload.new as Profile);
+        })
+        .subscribe();
+    };
+
     const initAuth = async () => {
       try {
         const {
@@ -59,6 +82,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
         if (session?.user) {
           await fetchProfile(session.user.id);
+          setupProfileListener(session.user.id);
         }
       } catch (error) {
         console.error('Auth init error:', error);
@@ -75,10 +99,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!mounted) return;
 
       if (session?.user && event !== 'SIGNED_OUT') {
+        const userId = session.user.id;
         setSession(session);
         setUser(session.user);
-        await fetchProfile(session.user.id);
+        await fetchProfile(userId);
+        setupProfileListener(userId);
       } else {
+        if (profileSubscription) profileSubscription.unsubscribe();
         setSession(session);
         setUser(session?.user ?? null);
         setProfile(null);
@@ -89,6 +116,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      if (profileSubscription) profileSubscription.unsubscribe();
     };
   }, []);
 
@@ -114,10 +142,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             role: userEmail === ADMIN_EMAIL ? 'admin' : 'user',
             xp: 0,
             power_level: 0,
-            onboarding_completed: false,
+            onboarding_completed: true, // Assume true to keep them out of onboarding
             level_title: 'Beginner',
-            goals: [],
+            goals: metadata?.fitness_goals || [],
             weak_spots: [],
+            height_cm: metadata?.height_cm || null,
+            weight_kg: metadata?.weight_kg || null,
+            body_type: metadata?.body_type || null,
+            play_type: metadata?.play_type || null,
           })
           .select()
           .single();
@@ -153,8 +185,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             power_level: 0,
             onboarding_completed: true, // Assume true to keep them out of onboarding
             level_title: 'Beginner',
-            goals: [],
+            goals: meta?.fitness_goals || [],
             weak_spots: [],
+            height_cm: meta?.height_cm || null,
+            weight_kg: meta?.weight_kg || null,
+            body_type: meta?.body_type || null,
+            play_type: meta?.play_type || null,
+            created_at: new Date().toISOString(),
           });
         }
       } else {
@@ -188,6 +225,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     fullName: string,
     phone: string,
     dob: string,
+    extraData?: any
   ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -197,6 +235,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           full_name: fullName,
           phone: phone,
           date_of_birth: dob,
+          ...extraData,
         },
       },
     });

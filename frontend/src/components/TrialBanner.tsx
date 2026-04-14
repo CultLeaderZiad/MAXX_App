@@ -11,22 +11,20 @@ export function TrialBanner() {
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!profile) return;
+    const trialEndStr = profile?.trial_end || profile?.created_at;
+    if (!trialEndStr) return;
 
-    // If they have no trial_start, we fallback to created_at or assume no trial.
-    // If they don't have a plan set yet, maybe they aren't on trial?
-    // Actually, all new users should be on a trial of 7 days according to the prompt request.
-    const startTime = profile.trial_start
-      ? new Date(profile.trial_start)
-      : new Date(profile.created_at || new Date());
-    const endTime = new Date(startTime.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const now = new Date();
+    const trialEnds = profile?.trial_end 
+      ? new Date(profile.trial_end).getTime() 
+      : new Date(profile.created_at).getTime() + (7 * 24 * 60 * 60 * 1000);
+      
+    const now = new Date().getTime();
 
-    const diffTime = Math.max(0, endTime.getTime() - now.getTime());
+    const diffTime = Math.max(0, trialEnds - now);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     setDaysLeft(diffDays);
-  }, [profile]);
+  }, [profile?.trial_end, profile?.created_at]);
 
   if (!profile || daysLeft === null || daysLeft <= 0) return null;
 

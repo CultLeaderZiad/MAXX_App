@@ -767,9 +767,14 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
             <Text style={{ color: theme.textPrimary, fontFamily: FONTS.cinzelBold, fontSize: 18, marginBottom: 8 }}>
               Configure AI Engine
             </Text>
-            <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 20, fontFamily: FONTS.regular, lineHeight: 20 }}>
+            <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 10, fontFamily: FONTS.regular, lineHeight: 20 }}>
               MAXX Convo Lab uses Gemini to simulate conversations. Please enter your Gemini API Key to continue (we do not store this, it is saved locally on your device).
             </Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://aistudio.google.com/app/apikey')} style={{ marginBottom: 20 }}>
+              <Text style={{ color: theme.gold, fontSize: 13, fontFamily: FONTS.semiBold, textDecorationLine: 'underline' }}>
+                How to get a Gemini API Key?
+              </Text>
+            </TouchableOpacity>
             
             <TextInput
               style={{ backgroundColor: theme.bgElevated, color: theme.textPrimary, borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: theme.border }}

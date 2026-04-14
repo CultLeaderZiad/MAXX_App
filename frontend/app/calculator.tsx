@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, KeyboardAvoidingView, Platform,
+  TextInput, Alert, KeyboardAvoidingView, Platform, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -11,7 +11,71 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { FONTS, SPACING, RADIUS } from '../src/constants/theme';
 
+const cs = StyleSheet.create({
+  container: { flex: 1 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingBottom: 8 },
+  headerTitle: { fontSize: 16 },
+  formCard: { borderWidth: 0.5, borderRadius: 14, padding: SPACING.lg },
+  stepLabel: { fontSize: 13, marginBottom: SPACING.md, fontFamily: FONTS.semiBold, letterSpacing: 0.5 },
+  inputLabel: { fontSize: 13, fontFamily: FONTS.semiBold, letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
+  input: { borderWidth: 0.5, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, fontSize: 18, fontFamily: FONTS.semiBold },
+  optionPill: { borderWidth: 1, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 16 },
+  goldBtn: { paddingVertical: 16, borderRadius: 10, alignItems: 'center', marginTop: SPACING.xl },
+  prefill: { borderWidth: 0.5, borderRadius: 10, padding: SPACING.md, marginBottom: SPACING.md, alignItems: 'center' },
+  resultCard: { borderWidth: 1, borderRadius: 16, padding: SPACING.xl, alignItems: 'center' },
+  macroBox: { borderWidth: 1, borderRadius: 16, padding: SPACING.lg, alignItems: 'center', flex: 1 },
+  timeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 0.5, borderRadius: 10, padding: SPACING.md, marginBottom: 8 },
+  saveNote: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: SPACING.md, marginTop: SPACING.lg },
+  animatedResultContainer: { opacity: 1, transform: [{ translateY: 0 }] }
+});
+
 type CalcType = 'calorie' | 'hydration' | 'sleep' | 'ffmi' | 'bmi_bodyfat' | 'macro';
+
+// --- Shared UI Components to avoid re-renders ---
+const InputField = React.memo(({ label, value, onChangeText, placeholder, keyboardType, theme }: any) => (
+  <View style={{ marginBottom: SPACING.md }}>
+    <Text style={[cs.inputLabel, { color: theme.textMuted }]}>{label.toUpperCase()}</Text>
+    <TextInput
+      style={[cs.input, { 
+        backgroundColor: theme.bgElevated, 
+        color: theme.textPrimary, 
+        borderColor: theme.border,
+        fontSize: 22, // Larger, more professional font
+        fontFamily: FONTS.bold
+      }]}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder || ''}
+      placeholderTextColor={theme.textMuted}
+      keyboardType={keyboardType || 'numeric'}
+    />
+  </View>
+));
+
+const OptionRow = React.memo(({ options, selected, onSelect, colors, theme }: any) => (
+  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.md }}>
+    {options.map((opt: string) => (
+      <TouchableOpacity
+        key={opt}
+        onPress={() => onSelect(opt)}
+        style={[cs.optionPill, {
+          backgroundColor: selected === opt ? (colors?.[opt] || theme.gold) + '22' : theme.bgElevated,
+          borderColor: selected === opt ? (colors?.[opt] || theme.gold) : theme.border,
+        }]}
+      >
+        <Text style={{ color: selected === opt ? (colors?.[opt] || theme.gold) : theme.textMuted, fontSize: 11, fontWeight: '600' }}>
+          {opt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+));
+
+const GoldButton = React.memo(({ label, onPress, theme }: any) => (
+  <TouchableOpacity onPress={onPress} style={[cs.goldBtn, { backgroundColor: theme.gold }]}>
+    <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold, fontSize: 14 }}>{label}</Text>
+  </TouchableOpacity>
+));
 
 const CALC_TITLES: Record<CalcType, string> = {
   calorie: 'Calorie Calculator',
@@ -240,47 +304,8 @@ export default function CalculatorScreen() {
     </View>
   );
 
-  const InputField = ({ label, value, onChangeText, placeholder, keyboardType }: any) => (
-    <View style={{ marginBottom: SPACING.md }}>
-      <Text style={[cs.inputLabel, { color: theme.textMuted }]}>{label}</Text>
-      <TextInput
-        style={[cs.input, { backgroundColor: theme.bgElevated, color: theme.textPrimary, borderColor: theme.border }]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder || ''}
-        placeholderTextColor={theme.textMuted}
-        keyboardType={keyboardType || 'numeric'}
-      />
-    </View>
-  );
-
-  const OptionRow = ({ options, selected, onSelect, colors }: { options: string[]; selected: string; onSelect: (v: string) => void; colors?: Record<string, string> }) => (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.md }}>
-      {options.map(opt => (
-        <TouchableOpacity
-          key={opt}
-          onPress={() => onSelect(opt)}
-          style={[cs.optionPill, {
-            backgroundColor: selected === opt ? (colors?.[opt] || theme.gold) + '22' : theme.bgElevated,
-            borderColor: selected === opt ? (colors?.[opt] || theme.gold) : theme.border,
-          }]}
-        >
-          <Text style={{ color: selected === opt ? (colors?.[opt] || theme.gold) : theme.textMuted, fontSize: 11, fontWeight: '600' }}>
-            {opt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
-  const GoldButton = ({ label, onPress }: { label: string; onPress: () => void }) => (
-    <TouchableOpacity onPress={onPress} style={[cs.goldBtn, { backgroundColor: theme.gold }]}>
-      <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold, fontSize: 14 }}>{label}</Text>
-    </TouchableOpacity>
-  );
-
   // ── Pre-fill banner ──
-  const PreFill = () => {
+  const renderPreFill = () => {
     if (!profile?.weight_kg && !profile?.height_cm) return null;
     return (
       <View style={[cs.prefill, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}>
@@ -302,29 +327,29 @@ export default function CalculatorScreen() {
       if (step === 0) return (<>
         {renderDots(4)}
         <Text style={[cs.stepLabel, { color: theme.textMuted }]}>Step 1 of 4 — Units</Text>
-        <OptionRow options={['metric', 'imperial']} selected={unitSystem} onSelect={(v) => setUnitSystem(v as any)} />
-        <GoldButton label="NEXT" onPress={() => setStep(1)} />
+        <OptionRow options={['metric', 'imperial']} selected={unitSystem} onSelect={(v: any) => setUnitSystem(v)} theme={theme} />
+        <GoldButton label="NEXT" onPress={() => setStep(1)} theme={theme} />
       </>);
       if (step === 1) return (<>
         {renderDots(4)}
         <Text style={[cs.stepLabel, { color: theme.textMuted }]}>Step 2 of 4 — Your Stats</Text>
-        <PreFill />
-        <InputField label={`Weight (${unitSystem === 'metric' ? 'kg' : 'lbs'})`} value={weight} onChangeText={setWeight} />
-        <InputField label={`Height (${unitSystem === 'metric' ? 'cm' : 'inches'})`} value={height} onChangeText={setHeight} />
-        <InputField label="Age" value={age} onChangeText={setAge} />
+        {renderPreFill()}
+        <InputField label={`Weight (${unitSystem === 'metric' ? 'kg' : 'lbs'})`} value={weight} onChangeText={setWeight} theme={theme} />
+        <InputField label={`Height (${unitSystem === 'metric' ? 'cm' : 'inches'})`} value={height} onChangeText={setHeight} theme={theme} />
+        <InputField label="Age" value={age} onChangeText={setAge} theme={theme} />
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Gender</Text>
-        <OptionRow options={['male', 'female']} selected={gender} onSelect={(v) => setGender(v as any)} />
-        <GoldButton label="NEXT" onPress={() => setStep(2)} />
+        <OptionRow options={['male', 'female']} selected={gender} onSelect={(v: any) => setGender(v)} theme={theme} />
+        <GoldButton label="NEXT" onPress={() => setStep(2)} theme={theme} />
       </>);
       if (step === 2) return (<>
         {renderDots(4)}
         <Text style={[cs.stepLabel, { color: theme.textMuted }]}>Step 3 of 4 — Activity Level</Text>
-        <PreFill />
+        {renderPreFill()}
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Activity Level</Text>
-        <OptionRow options={['sedentary', 'light', 'moderate', 'very_active', 'athlete']} selected={activityLevel} onSelect={setActivityLevel} />
+        <OptionRow options={['sedentary', 'light', 'moderate', 'very_active', 'athlete']} selected={activityLevel} onSelect={setActivityLevel} theme={theme} />
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Your Goal</Text>
-        <OptionRow options={['cut', 'recomp', 'bulk']} selected={goal} onSelect={setGoal} colors={{ cut: '#E74C3C', recomp: '#C8A96E', bulk: '#2ECC71' }} />
-        <GoldButton label="CALCULATE MY CALORIES" onPress={calculateCalorie} />
+        <OptionRow options={['cut', 'recomp', 'bulk']} selected={goal} onSelect={setGoal} colors={{ cut: '#E74C3C', recomp: '#C8A96E', bulk: '#2ECC71' }} theme={theme} />
+        <GoldButton label="CALCULATE MY CALORIES" onPress={calculateCalorie} theme={theme} />
       </>);
     }
 
@@ -333,12 +358,12 @@ export default function CalculatorScreen() {
       if (step === 99 && result) return renderHydrationResult();
       return (<>
         {renderDots(1)}
-        <InputField label="Weight (kg)" value={weight} onChangeText={setWeight} />
+        <InputField label="Weight (kg)" value={weight} onChangeText={setWeight} theme={theme} />
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Activity Level</Text>
-        <OptionRow options={['sedentary', 'moderate', 'very_active']} selected={activityLevel} onSelect={setActivityLevel} />
+        <OptionRow options={['sedentary', 'moderate', 'very_active']} selected={activityLevel} onSelect={setActivityLevel} theme={theme} />
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Climate</Text>
-        <OptionRow options={['Normal', 'Hot']} selected={climate} onSelect={setClimate} />
-        <GoldButton label="CALCULATE HYDRATION" onPress={calculateHydration} />
+        <OptionRow options={['Normal', 'Hot']} selected={climate} onSelect={setClimate} theme={theme} />
+        <GoldButton label="CALCULATE HYDRATION" onPress={calculateHydration} theme={theme} />
       </>);
     }
 
@@ -347,17 +372,17 @@ export default function CalculatorScreen() {
       if (step === 99 && result) return renderSleepResult();
       return (<>
         {renderDots(1)}
-        <InputField label="Age" value={age} onChangeText={setAge} />
+        <InputField label="Age" value={age} onChangeText={setAge} theme={theme} />
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Wake Time</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: SPACING.md }}>
           <TextInput style={[cs.input, { flex: 1, backgroundColor: theme.bgElevated, color: theme.textPrimary, borderColor: theme.border }]} value={wakeHour} onChangeText={setWakeHour} placeholder="7" placeholderTextColor={theme.textMuted} keyboardType="numeric" />
           <Text style={{ color: theme.textMuted, fontSize: 20, alignSelf: 'center' }}>:</Text>
           <TextInput style={[cs.input, { flex: 1, backgroundColor: theme.bgElevated, color: theme.textPrimary, borderColor: theme.border }]} value={wakeMinute} onChangeText={setWakeMinute} placeholder="00" placeholderTextColor={theme.textMuted} keyboardType="numeric" />
-          <OptionRow options={['AM', 'PM']} selected={wakeAmPm} onSelect={(v) => setWakeAmPm(v as any)} />
+          <OptionRow options={['AM', 'PM']} selected={wakeAmPm} onSelect={(v: any) => setWakeAmPm(v)} theme={theme} />
         </View>
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Sleep Goal</Text>
-        <OptionRow options={['standard', 'recovery', 'max_t']} selected={sleepGoal} onSelect={setSleepGoal} />
-        <GoldButton label="CALCULATE SLEEP" onPress={calculateSleep} />
+        <OptionRow options={['standard', 'recovery', 'max_t']} selected={sleepGoal} onSelect={setSleepGoal} theme={theme} />
+        <GoldButton label="CALCULATE SLEEP" onPress={calculateSleep} theme={theme} />
       </>);
     }
 
@@ -366,11 +391,11 @@ export default function CalculatorScreen() {
       if (step === 99 && result) return renderFFMIResult();
       return (<>
         {renderDots(1)}
-        <PreFill />
-        <InputField label="Weight (kg)" value={weight} onChangeText={setWeight} />
-        <InputField label="Height (cm)" value={height} onChangeText={setHeight} />
-        <InputField label="Body Fat %" value={bodyFatPct} onChangeText={setBodyFatPct} />
-        <GoldButton label="CALCULATE FFMI" onPress={calculateFFMI} />
+        {renderPreFill()}
+        <InputField label="Weight (kg)" value={weight} onChangeText={setWeight} theme={theme} />
+        <InputField label="Height (cm)" value={height} onChangeText={setHeight} theme={theme} />
+        <InputField label="Body Fat %" value={bodyFatPct} onChangeText={setBodyFatPct} theme={theme} />
+        <GoldButton label="CALCULATE FFMI" onPress={calculateFFMI} theme={theme} />
       </>);
     }
 
@@ -379,15 +404,15 @@ export default function CalculatorScreen() {
       if (step === 99 && result) return renderBMIResult();
       return (<>
         {renderDots(1)}
-        <PreFill />
-        <InputField label="Weight (kg)" value={weight} onChangeText={setWeight} />
-        <InputField label="Height (cm)" value={height} onChangeText={setHeight} />
-        <InputField label="Age" value={age} onChangeText={setAge} />
+        {renderPreFill()}
+        <InputField label="Weight (kg)" value={weight} onChangeText={setWeight} theme={theme} />
+        <InputField label="Height (cm)" value={height} onChangeText={setHeight} theme={theme} />
+        <InputField label="Age" value={age} onChangeText={setAge} theme={theme} />
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Gender</Text>
-        <OptionRow options={['male', 'female']} selected={gender} onSelect={(v) => setGender(v as any)} />
-        <InputField label="Neck (cm)" value={neckCm} onChangeText={setNeckCm} />
-        <InputField label="Waist (cm)" value={waistCm} onChangeText={setWaistCm} />
-        <GoldButton label="CALCULATE BMI + BODY FAT" onPress={calculateBMI} />
+        <OptionRow options={['male', 'female']} selected={gender} onSelect={(v: any) => setGender(v)} theme={theme} />
+        <InputField label="Neck (cm)" value={neckCm} onChangeText={setNeckCm} theme={theme} />
+        <InputField label="Waist (cm)" value={waistCm} onChangeText={setWaistCm} theme={theme} />
+        <GoldButton label="CALCULATE BMI + BODY FAT" onPress={calculateBMI} theme={theme} />
       </>);
     }
 
@@ -396,183 +421,200 @@ export default function CalculatorScreen() {
       if (step === 99 && result) return renderMacroResult();
       return (<>
         {renderDots(1)}
-        <InputField label="Daily Calorie Target" value={calorieTarget} onChangeText={setCalorieTarget} placeholder="e.g. 2340" />
-        <InputField label="Body Weight (kg)" value={weight} onChangeText={setWeight} />
+        <InputField label="Daily Calorie Target" value={calorieTarget} onChangeText={setCalorieTarget} placeholder="e.g. 2340" theme={theme} />
+        <InputField label="Body Weight (kg)" value={weight} onChangeText={setWeight} theme={theme} />
         <Text style={[cs.inputLabel, { color: theme.textMuted }]}>Goal</Text>
-        <OptionRow options={['cut', 'recomp', 'bulk']} selected={macroGoal} onSelect={setMacroGoal} />
-        <GoldButton label="CALCULATE MACROS" onPress={calculateMacro} />
+        <OptionRow options={['cut', 'recomp', 'bulk']} selected={macroGoal} onSelect={setMacroGoal} theme={theme} />
+        <GoldButton label="CALCULATE MACROS" onPress={calculateMacro} theme={theme} />
       </>);
     }
 
     return null;
   };
 
-  // ── Result renderers ──
+  // ── Result renderers with Animation ──
+  const ResultWrapper = ({ children }: { children: React.ReactNode }) => {
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current;
+
+    useEffect(() => {
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true })
+      ]).start();
+    }, []);
+
+    return (
+      <Animated.View style={[cs.animatedResultContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+        {children}
+      </Animated.View>
+    );
+  };
+
   const renderCalorieResult = () => (
-    <View>
-      <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: theme.gold }]}>
-        <Text style={{ color: theme.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>YOUR DAILY TARGET</Text>
-        <Text style={{ color: theme.gold, fontFamily: FONTS.cinzelBold, fontSize: 32 }}>{result.calories}</Text>
-        <Text style={{ color: theme.gold, fontSize: 14 }}>kcal/day</Text>
-        <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>
-          Maintenance with body {goal === 'cut' ? 'fat loss' : goal === 'bulk' ? 'building' : 'recomposition'} goal
+    <ResultWrapper>
+      <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: theme.gold, borderLeftWidth: 4 }]}>
+        <Text style={{ color: theme.textMuted, fontSize: 10, letterSpacing: 2, marginBottom: 8 }}>YOUR DAILY OPTIMAL TARGET</Text>
+        <Text style={{ color: theme.gold, fontFamily: FONTS.cinzelBold, fontSize: 52 }}>{result.calories}</Text>
+        <Text style={{ color: theme.gold, fontSize: 18, fontFamily: FONTS.bold, letterSpacing: 1 }}>KCAL / DAY</Text>
+        <View style={{ height: 1, width: '100%', backgroundColor: theme.border, marginVertical: 16 }} />
+        <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', fontFamily: FONTS.medium }}>
+          Optimized for <Text style={{ color: theme.textPrimary }}>{goal.toUpperCase()}</Text> protocols
         </Text>
       </View>
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: SPACING.md }}>
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: SPACING.lg }}>
         {[
           { label: 'PROTEIN', value: `${result.protein}g`, color: '#2ECC71' },
           { label: 'CARBS', value: `${result.carbs}g`, color: '#C8A96E' },
           { label: 'FATS', value: `${result.fats}g`, color: '#E74C3C' },
         ].map(m => (
-          <View key={m.label} style={[cs.macroBox, { backgroundColor: theme.bgSurface, borderColor: m.color }]}>
-            <Text style={{ color: m.color, fontFamily: FONTS.cinzelBold, fontSize: 18 }}>{m.value}</Text>
-            <Text style={{ color: theme.textMuted, fontSize: 8, letterSpacing: 0.5 }}>{m.label}</Text>
+          <View key={m.label} style={[cs.macroBox, { backgroundColor: theme.bgSurface, borderColor: m.color + '44' }]}>
+            <Text style={{ color: m.color, fontFamily: FONTS.cinzelBold, fontSize: 24 }}>{m.value}</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 9, letterSpacing: 1, marginTop: 4 }}>{m.label}</Text>
           </View>
         ))}
       </View>
       <View style={[cs.saveNote, { backgroundColor: theme.bgElevated }]}>
-        <Feather name="check-circle" size={14} color={theme.gold} />
-        <Text style={{ color: theme.textMuted, fontSize: 11, marginLeft: 6 }}>Saved to your profile. Resets when you update weight or goal.</Text>
+        <Feather name="shield" size={16} color={theme.gold} />
+        <Text style={{ color: theme.textMuted, fontSize: 11, fontStyle: 'italic', marginLeft: 8, flex: 1 }}>Data synchronized to your Alpha profile.</Text>
       </View>
-      <GoldButton label="RECALCULATE" onPress={() => { setResult(null); setStep(0); }} />
-    </View>
+      <GoldButton label="START NEW CALCULATION" onPress={() => { setResult(null); setStep(0); }} theme={theme} />
+    </ResultWrapper>
   );
 
   const renderHydrationResult = () => (
-    <View>
-      <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: '#4A90D9' }]}>
-        <Text style={{ color: '#4A90D9', fontFamily: FONTS.cinzelBold, fontSize: 32 }}>{result.liters} L/day</Text>
-        <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>Total: {result.total_ml} ml</Text>
+    <ResultWrapper>
+      <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: '#4A90D9', borderLeftWidth: 4 }]}>
+        <Text style={{ color: '#4A90D9', fontFamily: FONTS.cinzelBold, fontSize: 44 }}>{result.liters} L / DAY</Text>
+        <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 4 }}>TOTAL VOLUME: {result.total_ml} ML</Text>
       </View>
-      <View style={{ marginTop: SPACING.md, gap: 8 }}>
+      <View style={{ marginTop: SPACING.lg, gap: 10 }}>
         {[
-          { time: 'Morning (wake)', ml: `${result.morning}ml` },
-          { time: 'Pre-workout', ml: `${result.pre_workout}ml` },
-          { time: 'Post-workout', ml: `${result.post_workout}ml` },
-          { time: 'Evening', ml: `${result.evening}ml` },
+          { time: 'Mornings (Immediate)', ml: `${result.morning}ml` },
+          { time: 'Pre-workout Window', ml: `${result.pre_workout}ml` },
+          { time: 'Post-workout Window', ml: `${result.post_workout}ml` },
+          { time: 'Evening & Night', ml: `${result.evening}ml` },
         ].map(t => (
-          <View key={t.time} style={[cs.timeRow, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-            <Text style={{ color: theme.textPrimary, fontSize: 12 }}>{t.time}</Text>
-            <Text style={{ color: '#4A90D9', fontFamily: FONTS.bold, fontSize: 12 }}>{t.ml}</Text>
+          <View key={t.time} style={[cs.timeRow, { backgroundColor: theme.bgSurface, borderColor: theme.border, paddingVertical: 14 }]}>
+            <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: FONTS.bold }}>{t.time}</Text>
+            <Text style={{ color: '#4A90D9', fontFamily: FONTS.bold, fontSize: 14 }}>{t.ml}</Text>
           </View>
         ))}
       </View>
-      <GoldButton label="RECALCULATE" onPress={() => { setResult(null); setStep(0); }} />
-    </View>
+      <GoldButton label="START NEW CALCULATION" onPress={() => { setResult(null); setStep(0); }} theme={theme} />
+    </ResultWrapper>
   );
 
   const renderSleepResult = () => (
-    <View>
-      <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: '#9B59B6' }]}>
-        <Text style={{ color: '#9B59B6', fontFamily: FONTS.cinzelBold, fontSize: 32 }}>{result.total_hours} hrs</Text>
-        <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>{result.cycles} sleep cycles recommended</Text>
+    <ResultWrapper>
+      <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: '#9B59B6', borderLeftWidth: 4 }]}>
+        <Text style={{ color: '#9B59B6', fontFamily: FONTS.cinzelBold, fontSize: 44 }}>{result.total_hours} HRS</Text>
+        <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 4 }}>{result.cycles} ARCHITECTED SLEEP CYCLES</Text>
       </View>
-      <Text style={{ color: theme.textMuted, fontSize: 10, letterSpacing: 1, marginTop: SPACING.md, marginBottom: 8 }}>BEST BEDTIMES</Text>
+      <Text style={{ color: theme.textMuted, fontSize: 10, letterSpacing: 2, marginTop: SPACING.lg, marginBottom: 12 }}>OPTIMIZED BEDTIMES</Text>
       {result.bedtimes.map((bt: string, i: number) => (
-        <View key={i} style={[cs.timeRow, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-          <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: FONTS.semiBold }}>{bt}</Text>
-          <Text style={{ color: '#9B59B6', fontSize: 10 }}>Option {i + 1}</Text>
+        <View key={i} style={[cs.timeRow, { backgroundColor: theme.bgSurface, borderColor: theme.border, paddingVertical: 16 }]}>
+          <Text style={{ color: theme.textPrimary, fontSize: 18, fontFamily: FONTS.cinzelBold }}>{bt}</Text>
+          <Text style={{ color: '#9B59B6', fontSize: 10, fontFamily: FONTS.bold }}>WINDOW {i + 1}</Text>
         </View>
       ))}
-      <View style={[cs.saveNote, { backgroundColor: '#9B59B622' }]}>
-        <Feather name="moon" size={14} color="#9B59B6" />
-        <Text style={{ color: '#9B59B6', fontSize: 11, marginLeft: 6 }}>{result.note}</Text>
+      <View style={[cs.saveNote, { backgroundColor: '#9B59B615', marginTop: SPACING.md }]}>
+        <Feather name="moon" size={16} color="#9B59B6" />
+        <Text style={{ color: '#9B59B6', fontSize: 12, marginLeft: 8, fontFamily: FONTS.medium }}>{result.note}</Text>
       </View>
-      <GoldButton label="RECALCULATE" onPress={() => { setResult(null); setStep(0); }} />
-    </View>
+      <GoldButton label="RE-OPTIMIZE SLEEP" onPress={() => { setResult(null); setStep(0); }} theme={theme} />
+    </ResultWrapper>
   );
 
   const renderFFMIResult = () => {
     const nf = parseFloat(result.normalized_ffmi);
     const pct = Math.min(100, Math.max(0, (nf / 30) * 100));
     return (
-      <View>
-        <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: '#2ECC71' }]}>
-          <Text style={{ color: '#2ECC71', fontFamily: FONTS.cinzelBold, fontSize: 32 }}>{result.normalized_ffmi}</Text>
-          <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>Normalized FFMI</Text>
-          <Text style={{ color: theme.textPrimary, fontSize: 13, marginTop: 8, fontFamily: FONTS.semiBold }}>{result.rating}</Text>
+      <ResultWrapper>
+        <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: '#2ECC71', borderLeftWidth: 4 }]}>
+          <Text style={{ color: '#2ECC71', fontFamily: FONTS.cinzelBold, fontSize: 44 }}>{result.normalized_ffmi}</Text>
+          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>NORMALIZED FAT-FREE MASS INDEX</Text>
+          <Text style={{ color: theme.textPrimary, fontSize: 18, marginTop: 12, fontFamily: FONTS.cinzelBold, letterSpacing: 1 }}>{result.rating.toUpperCase()}</Text>
         </View>
-        {/* Scale bar */}
-        <View style={{ marginTop: SPACING.md }}>
-          <View style={{ height: 10, borderRadius: 5, backgroundColor: theme.border, overflow: 'hidden' }}>
-            <View style={{ height: '100%', width: `${pct}%`, backgroundColor: nf >= 26 ? '#E74C3C' : nf >= 22 ? '#C8A96E' : '#2ECC71', borderRadius: 5 }} />
+        <View style={{ marginTop: SPACING.lg }}>
+          <View style={{ height: 12, borderRadius: 6, backgroundColor: theme.border, overflow: 'hidden' }}>
+            <View style={{ height: '100%', width: `${pct}%`, backgroundColor: nf >= 26 ? '#E74C3C' : nf >= 22 ? '#C8A96E' : '#2ECC71', borderRadius: 6 }} />
           </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-            <Text style={{ color: theme.textMuted, fontSize: 8 }}>Below avg</Text>
-            <Text style={{ color: theme.textMuted, fontSize: 8 }}>Average</Text>
-            <Text style={{ color: theme.textMuted, fontSize: 8 }}>Excellent</Text>
-            <Text style={{ color: theme.textMuted, fontSize: 8 }}>Natural limit</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+            <Text style={{ color: theme.textMuted, fontSize: 8 }}>NATURAL</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 8 }}>ELITE</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 8 }}>UNLIKELY</Text>
           </View>
         </View>
-        <View style={[cs.saveNote, { backgroundColor: '#C8A96E15' }]}>
-          <Feather name="info" size={14} color={theme.gold} />
-          <Text style={{ color: theme.gold, fontSize: 11, marginLeft: 6 }}>Natural ceiling is approximately 25-26 FFMI</Text>
+        <View style={[cs.saveNote, { backgroundColor: '#C8A96E15', marginTop: SPACING.md }]}>
+          <Feather name="info" size={16} color={theme.gold} />
+          <Text style={{ color: theme.gold, fontSize: 12, marginLeft: 8, fontFamily: FONTS.medium }}>Elite natural potential usually peaks around 25 FFMI.</Text>
         </View>
-        <GoldButton label="RECALCULATE" onPress={() => { setResult(null); setStep(0); }} />
-      </View>
+        <GoldButton label="START NEW CALCULATION" onPress={() => { setResult(null); setStep(0); }} theme={theme} />
+      </ResultWrapper>
     );
   };
 
   const renderBMIResult = () => {
     const bmi = parseFloat(result.bmi);
     const zoneColors = ['#E74C3C', '#E67E22', '#2ECC71', '#4A90D9', '#C8A96E'];
-    const pct = Math.min(100, Math.max(0, ((bmi - 10) / 35) * 100));
     return (
-      <View>
-        <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: '#E67E22' }]}>
-          <Text style={{ color: '#E67E22', fontFamily: FONTS.cinzelBold, fontSize: 32 }}>{result.bmi}</Text>
-          <Text style={{ color: theme.textPrimary, fontSize: 13, marginTop: 4, fontFamily: FONTS.semiBold }}>{result.bmi_category}</Text>
+      <ResultWrapper>
+        <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: '#E67E22', borderLeftWidth: 4 }]}>
+          <Text style={{ color: '#E67E22', fontFamily: FONTS.cinzelBold, fontSize: 44 }}>{result.bmi}</Text>
+          <Text style={{ color: theme.textPrimary, fontSize: 18, marginTop: 4, fontFamily: FONTS.cinzelBold, letterSpacing: 1 }}>{result.bmi_category.toUpperCase()}</Text>
         </View>
-        {/* BMI Bar */}
-        <View style={{ height: 10, borderRadius: 5, flexDirection: 'row', overflow: 'hidden', marginTop: SPACING.md }}>
+        
+        <View style={{ height: 8, borderRadius: 4, flexDirection: 'row', overflow: 'hidden', marginTop: SPACING.lg }}>
           {zoneColors.map((c, i) => <View key={i} style={{ flex: 1, backgroundColor: c }} />)}
         </View>
+
         {result.body_fat && (
-          <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: theme.border, marginTop: SPACING.md }]}>
-            <Text style={{ color: theme.textMuted, fontSize: 10 }}>BODY FAT (US NAVY)</Text>
-            <Text style={{ color: '#E67E22', fontFamily: FONTS.cinzelBold, fontSize: 24 }}>{result.body_fat}%</Text>
+          <View style={[cs.resultCard, { backgroundColor: theme.bgSurface, borderColor: theme.border, marginTop: SPACING.lg, paddingVertical: 20 }]}>
+            <Text style={{ color: theme.textMuted, fontSize: 10, letterSpacing: 1.5 }}>ESTIMATED BODY FAT (NAVY)</Text>
+            <Text style={{ color: '#E67E22', fontFamily: FONTS.cinzelBold, fontSize: 36 }}>{result.body_fat}%</Text>
           </View>
         )}
         {result.jaw_note ? (
-          <View style={[cs.saveNote, { backgroundColor: '#C8A96E15' }]}>
-            <Feather name="eye" size={14} color={theme.gold} />
-            <Text style={{ color: theme.gold, fontSize: 11, marginLeft: 6 }}>Jaw definition: {result.jaw_note}</Text>
+          <View style={[cs.saveNote, { backgroundColor: theme.gold + '15', marginTop: SPACING.md }]}>
+            <Feather name="target" size={16} color={theme.gold} />
+            <Text style={{ color: theme.gold, fontSize: 12, marginLeft: 8, fontFamily: FONTS.medium }}>Visual Indicator: {result.jaw_note}</Text>
           </View>
         ) : null}
-        <GoldButton label="RECALCULATE" onPress={() => { setResult(null); setStep(0); }} />
-      </View>
+        <GoldButton label="START NEW CALCULATION" onPress={() => { setResult(null); setStep(0); }} theme={theme} />
+      </ResultWrapper>
     );
   };
 
   const renderMacroResult = () => (
-    <View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
+    <ResultWrapper>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
         {[
           { label: 'PROTEIN', value: `${result.protein}g`, color: '#2ECC71' },
           { label: 'CARBS', value: `${result.carbs}g`, color: '#C8A96E' },
           { label: 'FATS', value: `${result.fats}g`, color: '#E74C3C' },
         ].map(m => (
-          <View key={m.label} style={[cs.macroBox, { flex: 1, backgroundColor: theme.bgSurface, borderColor: m.color }]}>
-            <Text style={{ color: m.color, fontFamily: FONTS.cinzelBold, fontSize: 22 }}>{m.value}</Text>
-            <Text style={{ color: theme.textMuted, fontSize: 8, letterSpacing: 0.5 }}>{m.label}</Text>
+          <View key={m.label} style={[cs.macroBox, { flex: 1, backgroundColor: theme.bgSurface, borderColor: m.color + '44' }]}>
+            <Text style={{ color: m.color, fontFamily: FONTS.cinzelBold, fontSize: 26 }}>{m.value}</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 9, letterSpacing: 1, marginTop: 4 }}>{m.label}</Text>
           </View>
         ))}
       </View>
-      <View style={{ marginTop: SPACING.lg, gap: 8 }}>
-        <Text style={{ color: theme.textMuted, fontSize: 10, letterSpacing: 1 }}>TIMING GUIDE</Text>
+      <View style={{ marginTop: SPACING.lg, gap: 10 }}>
+        <Text style={{ color: theme.textMuted, fontSize: 10, letterSpacing: 2, marginBottom: 4 }}>NUTRITIONAL STRATEGY</Text>
         {[
-          { time: 'Pre-workout', food: 'Complex carbs + lean protein' },
-          { time: 'Post-workout', food: 'Fast carbs + whey protein' },
-          { time: 'Before bed', food: 'Casein protein + healthy fats' },
+          { time: 'Pre-workout Window', food: 'Complex Carbs + Lean Amino Source' },
+          { time: 'Post-workout Window', food: 'Fast Glycemic Index Carbs + Whey' },
+          { time: 'Nocturnal Window', food: 'Micellar Casein + Monounsaturated Fats' },
         ].map(t => (
-          <View key={t.time} style={[cs.timeRow, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
-            <Text style={{ color: theme.textPrimary, fontSize: 12 }}>{t.time}</Text>
-            <Text style={{ color: theme.textMuted, fontSize: 10 }}>{t.food}</Text>
+          <View key={t.time} style={[cs.timeRow, { backgroundColor: theme.bgSurface, borderColor: theme.border, paddingVertical: 14 }]}>
+            <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: FONTS.bold }}>{t.time}</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: FONTS.medium }}>{t.food}</Text>
           </View>
         ))}
       </View>
-      <GoldButton label="RECALCULATE" onPress={() => { setResult(null); setStep(0); }} />
-    </View>
+      <GoldButton label="START NEW CALCULATION" onPress={() => { setResult(null); setStep(0); }} theme={theme} />
+    </ResultWrapper>
   );
 
   return (
@@ -590,7 +632,7 @@ export default function CalculatorScreen() {
         Based on your saved profile stats
       </Text>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: 100 }}>
+        <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
           <View style={[cs.formCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
             <Text style={{ color: theme.gold, fontFamily: FONTS.cinzelBold, fontSize: 14, marginBottom: 4 }}>
               {step === 99 ? 'YOUR RESULTS' : CALC_TITLES[calcType]?.toUpperCase()}
@@ -608,19 +650,3 @@ export default function CalculatorScreen() {
   );
 }
 
-const cs = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingBottom: 8 },
-  headerTitle: { fontSize: 16 },
-  formCard: { borderWidth: 0.5, borderRadius: 14, padding: SPACING.lg },
-  stepLabel: { fontSize: 10, marginBottom: SPACING.md },
-  inputLabel: { fontSize: 10, letterSpacing: 0.5, marginBottom: 4 },
-  input: { borderWidth: 0.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
-  optionPill: { borderWidth: 1, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
-  goldBtn: { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: SPACING.lg },
-  prefill: { borderWidth: 0.5, borderRadius: 10, padding: SPACING.md, marginBottom: SPACING.md, alignItems: 'center' },
-  resultCard: { borderWidth: 0.5, borderRadius: 12, padding: SPACING.lg, alignItems: 'center' },
-  macroBox: { borderWidth: 1, borderRadius: 10, padding: SPACING.md, alignItems: 'center' },
-  timeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 0.5, borderRadius: 8, padding: SPACING.md, marginBottom: 6 },
-  saveNote: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, padding: SPACING.md, marginTop: SPACING.md },
-});
