@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
 
@@ -157,6 +158,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           });
         }
       } else {
+        // ── Banned user enforcement ──
+        if (data?.banned === true) {
+          Alert.alert(
+            'Account Banned',
+            'Your account has been banned. If you believe this is a mistake, contact support.',
+            [{ text: 'OK', onPress: () => signOutBanned() }]
+          );
+          return;
+        }
         setProfile(data);
       }
     } catch (e) {
@@ -199,11 +209,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       email,
       password,
     });
+    if (!error) {
+      // Check if user is banned immediately after sign-in
+      const { data: { user: signedInUser } } = await supabase.auth.getUser();
+      if (signedInUser) {
+        const { data: prof } = await supabase.from('profiles').select('banned').eq('id', signedInUser.id).single();
+        if (prof?.banned === true) {
+          await supabase.auth.signOut();
+          return { error: { message: 'Your account has been banned. Contact support.' } as any };
+        }
+      }
+    }
     return { error };
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setProfile(null);
+    setUser(null);
+    setSession(null);
+    router.replace('/');
+  };
+
+  /** Force sign-out for banned users — clears state and redirects */
+  const signOutBanned = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (_) { /* ignore */ }
+    setProfile(null);
+    setUser(null);
+    setSession(null);
     router.replace('/');
   };
 
