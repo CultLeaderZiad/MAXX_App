@@ -113,6 +113,8 @@ function RootLayoutNav() {
           <Stack.Screen name="exercise" options={{ presentation: 'modal', animation: 'slide_from_bottom', animationDuration: 300 }} />
           <Stack.Screen name="emergency" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="nofap" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="calculator" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="admin/index" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="settings/index" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="supplements" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="support" options={{ animation: 'slide_from_right' }} />

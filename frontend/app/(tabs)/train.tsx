@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   Share,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -107,9 +108,7 @@ export default function TrainScreen() {
       </ScrollView>
 
       <View style={styles.contentWrap}>
-        {(activeTab === "Jaw & Face" ||
-          activeTab === "Body" ||
-          activeTab === "Posture") && (
+        {(activeTab === "Jaw & Face" || activeTab === "Posture") && (
           <ProgramsTab
             category={
               CATEGORY_MAP[activeTab as Exclude<SubTab, "Nutrition" | "Guides">]
@@ -117,6 +116,7 @@ export default function TrainScreen() {
             theme={theme}
           />
         )}
+        {activeTab === "Body" && <BodyTab theme={theme} />}
         {activeTab === "Nutrition" && <NutritionTab theme={theme} />}
         {activeTab === "Guides" && <GuidesTab theme={theme} />}
       </View>
@@ -487,6 +487,352 @@ function ProgramsTab({ category, theme }: { category: string; theme: any }) {
     </ScrollView>
   );
 }
+
+// ─── Body Tab (Redesigned) ────────────────────────────────────────────────────
+const CALCULATOR_CARDS = [
+  { key: 'calorie', name: 'Calorie Calculator', desc: 'Calories for your goal', accent: '#C8A96E', icon: 'triangle' as const },
+  { key: 'hydration', name: 'Hydration Calculator', desc: 'Daily water intake target', accent: '#4A90D9', icon: 'droplet' as const },
+  { key: 'sleep', name: 'Sleep Calculator', desc: 'Optimize sleep cycles', accent: '#9B59B6', icon: 'moon' as const },
+  { key: 'ffmi', name: 'Fat-Free Mass Index', desc: 'Lean body mass score', accent: '#2ECC71', icon: 'square' as const },
+  { key: 'bmi_bodyfat', name: 'BMI + Body Fat', desc: 'Body composition', accent: '#E67E22', icon: 'heart' as const },
+  { key: 'macro', name: 'Macro Nutrients', desc: 'P / C / F split', accent: '#E74C3C', icon: 'hexagon' as const },
+];
+
+function BodyTab({ theme }: { theme: any }) {
+  const { profile, user } = useAuth();
+  const router = useRouter();
+  const { canAccess, handleGate } = usePlan();
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [exercises, setExercises] = useState<Record<string, any[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [stats, setStats] = useState<{ weight: string; height: string; bmi: string; bodyFat: string }>({
+    weight: '—', height: '—', bmi: '—', bodyFat: '—',
+  });
+  const [activeCalcs, setActiveCalcs] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let active = true;
+    const timeout = setTimeout(() => {
+      if (active && loading) { setLoading(false); setError(true); }
+    }, 7000);
+    fetchAll().then(() => { if (active) clearTimeout(timeout); });
+    return () => { active = false; clearTimeout(timeout); };
+  }, []);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      // Fetch stats from profile
+      if (profile?.weight_kg) setStats(prev => ({ ...prev, weight: `${profile.weight_kg}KG` }));
+      if (profile?.height_cm) setStats(prev => ({ ...prev, height: `${profile.height_cm}CM` }));
+
+      // Fetch calculator results for stats banner + active badges
+      if (user?.id) {
+        const { data: calcResults } = await supabase
+          .from('calculator_results')
+          .select('calc_type, results')
+          .eq('user_id', user.id);
+        if (calcResults) {
+          const actives = new Set<string>();
+          calcResults.forEach((cr: any) => {
+            actives.add(cr.calc_type);
+            if (cr.calc_type === 'bmi_bodyfat' && cr.results) {
+              if (cr.results.bmi) setStats(prev => ({ ...prev, bmi: String(Number(cr.results.bmi).toFixed(1)) }));
+              if (cr.results.body_fat) setStats(prev => ({ ...prev, bodyFat: `${Number(cr.results.body_fat).toFixed(0)}%` }));
+            }
+          });
+          setActiveCalcs(actives);
+        }
+      }
+
+      // Fetch programs + exercises for Body category
+      const { data: progData, error: progErr } = await supabase
+        .from('training_programs')
+        .select('id, title, subtitle, description, difficulty, unlock_level, required_plan, duration_weeks, sort_order')
+        .eq('category', 'body')
+        .eq('is_active', true)
+        .order('sort_order');
+      if (progErr) throw progErr;
+      if (!progData || progData.length === 0) { setPrograms([]); setLoading(false); return; }
+
+      const progs = progData.map((p: any) => {
+        let isLocked = false;
+        if (p.unlock_level && (profile?.power_level || 1) < p.unlock_level) isLocked = true;
+        if (p.required_plan && !canAccess(p.required_plan)) isLocked = true;
+        return { ...p, locked: isLocked };
+      });
+      setPrograms(progs);
+
+      const { data: allEx, error: exErr } = await supabase
+        .from('exercises')
+        .select('*')
+        .in('program_id', progs.map((p: any) => p.id))
+        .eq('is_active', true)
+        .order('exercise_order');
+      if (!exErr && allEx) {
+        const exMap: Record<string, any[]> = {};
+        allEx.forEach((ex: any) => {
+          if (!exMap[ex.program_id]) exMap[ex.program_id] = [];
+          exMap[ex.program_id].push(ex);
+        });
+        Object.keys(exMap).forEach(progId => {
+          const seen = new Set<string>();
+          exMap[progId] = exMap[progId].filter(ex => {
+            const key = ex.exercise_key || ex.id;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        });
+        setExercises(exMap);
+      }
+    } catch (e) {
+      console.error('Body tab fetch error:', e);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetStats = () => {
+    Alert.alert('Reset your saved stats?', 'This will clear your calculator results.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reset', style: 'destructive', onPress: async () => {
+          if (!user?.id) return;
+          try {
+            await supabase.from('calculator_results').delete().eq('user_id', user.id);
+            await supabase.from('profiles').update({
+              height_cm: null, weight_kg: null, sleep_hours: null, activity_level: null,
+            }).eq('id', user.id);
+            setStats({ weight: '—', height: '—', bmi: '—', bodyFat: '—' });
+            setActiveCalcs(new Set());
+            Alert.alert('Done', 'Stats reset. Re-enter to recalculate.');
+          } catch (e) {
+            console.error('Reset error:', e);
+          }
+        },
+      },
+    ]);
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={theme.gold} size="large" />
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <Feather name="alert-circle" size={40} color={theme.red || '#E74C3C'} />
+        <Text style={{ color: theme.textPrimary, fontFamily: FONTS.semiBold, marginTop: 12 }}>Load Failed</Text>
+        <TouchableOpacity onPress={fetchAll} style={{ marginTop: 12, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: theme.gold, borderRadius: RADIUS.pill }}>
+          <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold }}>RETRY</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const hasData = stats.weight !== '—' || stats.bmi !== '—';
+
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      {/* SECTION 1 — Your Stats header */}
+      <View style={bodyStyles.statsHeaderRow}>
+        <Text style={[bodyStyles.statsTitle, { color: theme.textPrimary, fontFamily: FONTS.cinzelBold }]}>Your Stats</Text>
+        <TouchableOpacity onPress={handleResetStats} style={bodyStyles.resetBtn}>
+          <Text style={bodyStyles.resetBtnText}>RESET STATS</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* SECTION 2 — Stats banner */}
+      <View style={[bodyStyles.statsBanner, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
+        {[
+          { value: stats.weight, label: 'WEIGHT' },
+          { value: stats.height, label: 'HEIGHT' },
+          { value: stats.bmi, label: 'BMI' },
+          { value: stats.bodyFat, label: 'BODY FAT' },
+        ].map((s, i) => (
+          <View key={s.label} style={bodyStyles.statsCell}>
+            <Text style={[bodyStyles.statsCellValue, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{s.value}</Text>
+            <Text style={[bodyStyles.statsCellLabel, { color: theme.textMuted }]}>
+              {hasData ? s.label : (i === 0 ? 'Tap a calculator below' : s.label)}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {/* SECTION 3 — Body Calculators label */}
+      <Text style={[bodyStyles.sectionLabel, { color: theme.textMuted }]}>BODY CALCULATORS</Text>
+
+      {/* SECTION 4 — Calculator grid */}
+      <View style={bodyStyles.calcGrid}>
+        {CALCULATOR_CARDS.map(calc => {
+          const isActive = activeCalcs.has(calc.key);
+          return (
+            <TouchableOpacity
+              key={calc.key}
+              style={[
+                bodyStyles.calcCard,
+                {
+                  backgroundColor: theme.bgSurface,
+                  borderColor: isActive ? '#C8A96E' : theme.border,
+                },
+              ]}
+              activeOpacity={0.8}
+              onPress={() => router.push(`/calculator?type=${calc.key}` as any)}
+            >
+              <View style={[bodyStyles.calcIconCircle, { backgroundColor: calc.accent + '26' }]}>
+                <Feather name={calc.icon} size={14} color={calc.accent} />
+              </View>
+              <Text style={[bodyStyles.calcName, { color: theme.textPrimary }]}>{calc.name}</Text>
+              <Text style={[bodyStyles.calcDesc, { color: theme.textMuted }]}>{calc.desc}</Text>
+              <View style={[bodyStyles.calcBadge, { backgroundColor: isActive ? '#C8A96E22' : theme.bgElevated }]}>
+                <Text style={{ color: isActive ? '#C8A96E' : theme.textMuted, fontSize: 7, fontWeight: '700', letterSpacing: 0.5 }}>
+                  {isActive ? 'ACTIVE' : 'TOOL'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* SECTION 5 — Workout Program header */}
+      {programs.length > 0 && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: SPACING.lg, marginBottom: SPACING.sm }}>
+          <Text style={{ color: theme.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1 }}>WORKOUT PROGRAM</Text>
+          <Text style={{ color: theme.textMuted, fontSize: 9 }}>
+            {programs[0]?.duration_weeks ? `${programs[0].duration_weeks} WEEKS` : ''} · {programs[0]?.difficulty?.toUpperCase() || ''}
+          </Text>
+        </View>
+      )}
+
+      {/* SECTION 5b — Natural Max banner */}
+      <View style={bodyStyles.naturalMaxBanner}>
+        <Text style={bodyStyles.naturalMaxText}>NATURAL MAX — NO TRT · NO PEDs · NO STEROIDS</Text>
+      </View>
+
+      {/* SECTION 6 — Exercise program cards (preserved) */}
+      {programs.map(prog => {
+        const progExercises = exercises[prog.id] || [];
+        return (
+          <View key={prog.id} style={{ marginBottom: SPACING.lg }}>
+            {!prog.locked && progExercises.map((ex: any) => (
+              <View
+                key={ex.id}
+                style={[styles.exerciseCard, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}
+              >
+                <View style={styles.exerciseHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.exerciseName, { color: theme.textPrimary, fontFamily: FONTS.semiBold }]}>
+                      {ex.name || ex.title}
+                    </Text>
+                    <Text style={[styles.exerciseMeta, { color: theme.textMuted }]}>
+                      {ex.sets ? `${ex.sets} sets` : ''}{ex.reps ? ` × ${ex.reps} reps` : ''}
+                      {ex.duration_seconds ? ` · ${ex.duration_seconds}s` : ''}
+                    </Text>
+                  </View>
+                  {ex.xp_reward ? (
+                    <View style={[styles.xpPill, { backgroundColor: theme.bgElevated }]}>
+                      <Text style={{ color: theme.gold, fontSize: 11, fontFamily: FONTS.semiBold }}>+{ex.xp_reward} XP</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {(ex.coach_note || ex.description) ? (
+                  <View style={[styles.coachNote, { borderLeftColor: theme.gold }]}>
+                    <Text style={{ color: theme.gold, fontFamily: FONTS.medium, fontSize: 12, fontStyle: 'italic' }}>
+                      {ex.coach_note || ex.description}
+                    </Text>
+                  </View>
+                ) : null}
+                <TouchableOpacity
+                  onPress={() => router.push(
+                    `/exercise?id=${ex.id}&programId=${prog.id}&name=${encodeURIComponent(ex.name || ex.title)}&sets=${ex.sets || 3}&hold=${ex.hold_seconds || 45}&rest=${ex.rest_seconds || 30}&xp=${ex.xp_reward || 30}&description=${encodeURIComponent(ex.description || '')}&coach_note=${encodeURIComponent(ex.coach_note || '')}&pro_tip=${encodeURIComponent(ex.pro_tip || '')}` as any,
+                  )}
+                  style={[styles.startBtn, { backgroundColor: theme.gold }]}
+                >
+                  <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold, fontSize: 13 }}>START</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            {!prog.locked && progExercises.length === 0 && (
+              <View style={[styles.exerciseCard, { backgroundColor: theme.bgSurface, borderColor: theme.border, alignItems: 'center', paddingVertical: 20 }]}>
+                <Text style={{ color: theme.textMuted, fontFamily: FONTS.medium }}>Content coming soon</Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+const bodyStyles = StyleSheet.create({
+  statsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  statsTitle: { fontSize: 14 },
+  resetBtn: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 0.5,
+    borderColor: '#C8A96E33',
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  resetBtnText: { color: '#C8A96E', fontSize: 8, fontWeight: '700' },
+  statsBanner: {
+    flexDirection: 'row',
+    borderWidth: 0.5,
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginBottom: SPACING.md,
+  },
+  statsCell: { flex: 1, alignItems: 'center' },
+  statsCellValue: { fontSize: 13 },
+  statsCellLabel: { fontSize: 8, marginTop: 2 },
+  sectionLabel: { fontSize: 9, letterSpacing: 1, fontWeight: '700', marginBottom: SPACING.sm },
+  calcGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  calcCard: {
+    width: '48.5%' as any,
+    borderWidth: 0.5,
+    borderRadius: 12,
+    padding: 10,
+  },
+  calcIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  calcName: { fontSize: 10, fontWeight: '700', marginBottom: 2 },
+  calcDesc: { fontSize: 8, marginBottom: 6 },
+  calcBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  naturalMaxBanner: {
+    backgroundColor: '#0d2010',
+    borderWidth: 0.5,
+    borderColor: '#2ECC7133',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  naturalMaxText: { color: '#2ECC71', fontSize: 8, fontWeight: '700' },
+});
 
 // ─── Nutrition Tab ────────────────────────────────────────────────────────────
 function NutritionTab({ theme }: { theme: any }) {
