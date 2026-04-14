@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0A0A0A",
-    "owner": "cultleaderziad",
+    "owner": "cultleaderziads-organization",
     "icon": "./assets/images/icon.png",
     "scheme": "maxx",
     "newArchEnabled": true,
@@ -28,10 +28,11 @@
       "versionCode": 1,
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "VIBRATE"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -59,11 +60,11 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "f9dbec40-974b-4ac1-8ed7-6cfd8eea1272"
+        "projectId": "38ae09d2-0118-4d45-b6a3-f73773f82835"
       }
     },
     "updates": {
-      "url": "https://u.expo.dev/f9dbec40-974b-4ac1-8ed7-6cfd8eea1272",
+      "url": "https://u.expo.dev/38ae09d2-0118-4d45-b6a3-f73773f82835",
       "enabled": true,
       "fallbackToCacheTimeout": 0
     },
