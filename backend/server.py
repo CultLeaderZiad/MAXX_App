@@ -15,7 +15,8 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError, InvalidTokenError
 import json
 
 ROOT_DIR = Path(__file__).parent

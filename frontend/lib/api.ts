@@ -25,3 +25,18 @@ export async function apiCall(
   }
   return res.json();
 }
+export async function auditProfile(platform: string, bio: string) {
+  return apiCall('/api/profile-audit', 'POST', { platform, bio });
+}
+
+export async function moderatePost(content: string) {
+  return apiCall('/api/moderate-post', 'POST', { content });
+}
+
+export async function getSupplementStack(goals: string[]) {
+  return apiCall('/api/supplement-stack', 'POST', { goals });
+}
+
+export async function getConversationReply(scenario: string, messages: any[], userMessage: string) {
+  return apiCall('/api/conversation', 'POST', { scenario, messages, user_message: userMessage });
+}
