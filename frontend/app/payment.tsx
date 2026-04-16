@@ -58,10 +58,11 @@ export default function PaymentScreen() {
         }
       }
 
+      // Update profile in Supabase
       try {
-        await api.post("/api/user/update-plan", { plan });
+        await supabase.from("profiles").update({ plan }).eq("id", user.id);
       } catch (e) {
-        console.warn("Sync to MongoDB failed", e);
+        console.warn("Sync to Supabase failed", e);
       }
 
       await fetchProfile();

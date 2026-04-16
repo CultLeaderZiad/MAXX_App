@@ -14,7 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "../../src/context/ThemeContext";
 import { Button } from "../../src/components/Button";
 import { FONTS, SPACING } from "../../src/constants/theme";
-import { api } from "../../src/services/api";
+import { supabase } from "../../lib/supabase";
 
 export default function ChangePasswordScreen() {
   const { theme } = useTheme();
@@ -40,10 +40,10 @@ export default function ChangePasswordScreen() {
 
     setLoading(true);
     try {
-      const response = await api.post("/api/user/change-password", {
-        old_password: oldPassword,
-        new_password: newPassword,
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
       });
+      if (error) throw error;
 
       Alert.alert("Success", "Password updated successfully");
       safeBack();
