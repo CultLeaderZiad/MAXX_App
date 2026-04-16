@@ -77,7 +77,7 @@ async def get_current_user(authorization: str = Header(None)) -> str:
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token: missing sub")
         return user_id
-    except JWTError:
+    except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 # ── Request Models ────────────────────────────────────────────────────────────

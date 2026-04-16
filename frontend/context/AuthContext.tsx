@@ -58,9 +58,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     let profileSubscription: any = null;
 
     const setupProfileListener = (userId: string) => {
-      if (profileSubscription) profileSubscription.unsubscribe();
+      // Ensure we clean up any old subscription properly
+      if (profileSubscription) {
+        supabase.removeChannel(profileSubscription);
+        profileSubscription = null;
+      }
+      
+      const channelName = `profile:${userId}`;
       profileSubscription = supabase
-        .channel(`profile:${userId}`)
+        .channel(channelName)
         .on('postgres_changes', { 
           event: 'UPDATE', 
           schema: 'public', 

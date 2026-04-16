@@ -13,6 +13,7 @@ import * as Updates from 'expo-updates';
 import { PlanProvider } from '../context/PlanContext';
 import { ThemeProvider as NavigationThemeProvider, DarkTheme } from '@react-navigation/native';
 import { PremiumModal } from '../src/components/PremiumModal';
+import ErrorBoundary from '../src/components/ErrorBoundary';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -159,8 +160,9 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <PlanProvider>
+          <ErrorBoundary>
             <RootLayoutNav />
-            <PremiumModal />
+          </ErrorBoundary>
           </PlanProvider>
         </AuthProvider>
       </ThemeProvider>
