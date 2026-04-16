@@ -39,28 +39,16 @@ function RootLayoutNav() {
     }
     
     if (session) {
-      if (isReset) {
-         // Let them stay on reset password
-         return;
-      }
+      if (isReset) return;
 
-      // If profile hasn't loaded yet, DON'T navigate — wait for it
       if (!profile) return;
-
-      // Skip onboarding for admins entirely
-      if (profile.role === 'admin') {
-        if (isPublic || isOnboarding) {
-          router.replace('/(tabs)');
-        }
-        return;
-      }
 
       if (!profile.onboarding_completed) {
         if (!isOnboarding) {
           router.replace('/goals');
         }
-      } else if (profile.onboarding_completed) {
-        if (isPublic) {
+      } else {
+        if (isPublic || isOnboarding) {
           router.replace('/(tabs)');
         }
       }

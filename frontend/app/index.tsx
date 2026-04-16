@@ -133,10 +133,8 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     if (!loading && user) {
-      // Skip onboarding for admins
-      if (profile?.role === 'admin') {
-        router.replace("/(tabs)");
-      } else if (!profile?.onboarding_completed) {
+      if (!profile) return;
+      if (!profile.onboarding_completed) {
         router.replace("/goals");
       } else {
         router.replace("/(tabs)");
@@ -245,15 +243,12 @@ export default function WelcomeScreen() {
           No charge until Day 8 · Cancel anytime
         </Text>
 
-        <TouchableOpacity 
+        <Button
+          title="I ALREADY HAVE AN ACCOUNT"
           onPress={() => router.push("/login")}
-          style={{ alignItems: "center", marginTop: 8 }}
-          testID="login-link"
-        >
-          <Text style={{ color: theme.textSecondary, fontFamily: FONTS.regular, fontSize: 13 }}>
-            Already have an account? <Text style={{ color: theme.gold, fontFamily: FONTS.semiBold }}>Sign in</Text>
-          </Text>
-        </TouchableOpacity>
+          variant="outline"
+          testID="login-btn"
+        />
       </Animated.View>
       <Text
         style={{

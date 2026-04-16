@@ -52,7 +52,7 @@ export default function SettingsScreen() {
         text: "Sign Out",
         style: "destructive",
         onPress: async () => {
-          await signOut();
+          await supabase.auth.signOut();
           router.replace("/");
         },
       },

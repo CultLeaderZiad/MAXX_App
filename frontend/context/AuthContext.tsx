@@ -4,7 +4,6 @@ import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
 
-const ADMIN_EMAIL = 'cultleaderzoz.dev@gmail.com';
 
 export type Profile = {
   id: string;
@@ -138,17 +137,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Profile not found — create default profile
         const { data: userData } = await supabase.auth.getUser();
         const metadata = userData?.user?.user_metadata;
-        const userEmail = userData?.user?.email;
 
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert({
             id: userId,
             full_name: metadata?.full_name || 'Brother',
-            role: userEmail === ADMIN_EMAIL ? 'admin' : 'user',
+            role: 'user',
             xp: 0,
             power_level: 0,
-            onboarding_completed: true, // Assume true to keep them out of onboarding
+            onboarding_completed: false,
             level_title: 'Beginner',
             goals: metadata?.fitness_goals || [],
             weak_spots: [],
@@ -178,18 +176,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setProfile(retryData);
         } else {
           console.error('Profile retry also failed:', retryError?.message);
-          // Fallback: build a stub profile from auth metadata so the user
-          // is NOT dumped to the landing page while the DB recovers
           const { data: userData } = await supabase.auth.getUser();
           const meta = userData?.user?.user_metadata;
-          const userEmail = userData?.user?.email;
           setProfile({
             id: userId,
             full_name: meta?.full_name || 'Brother',
-            role: userEmail === ADMIN_EMAIL ? 'admin' : 'user',
+            role: 'user',
             xp: 0,
             power_level: 0,
-            onboarding_completed: true, // Assume true to keep them out of onboarding
+            onboarding_completed: false,
             level_title: 'Beginner',
             goals: meta?.fitness_goals || [],
             weak_spots: [],
