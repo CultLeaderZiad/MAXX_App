@@ -27,6 +27,7 @@
       "package": "com.ziad.maxxapp",
       "versionCode": 1,
       "edgeToEdgeEnabled": true,
+      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -52,7 +53,8 @@
           "backgroundColor": "#0A0A0A"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

@@ -36,6 +36,7 @@ const VIDEO_HEIGHT = (SCREEN_WIDTH - SPACING.lg * 2) * (9 / 16);
 // ─── HIGH-FIDELITY EXERCISE VIDEO LIBRARY ────────────────────────────────────
 interface ExerciseVideoEntry {
   videoId: string;
+  gifUrl?: string; // High-priority GIF fallback
   title: string;
   guidelines: string[];
   formCues: string[];
@@ -44,8 +45,10 @@ interface ExerciseVideoEntry {
 
 const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   // ─── FACIAL VECTORS ──────────────────────────────────────────────────────────
+  // ─── FACIAL VECTORS ──────────────────────────────────────────────────────────
   mewing: {
-    videoId: "zbZwLFBsOiM",
+    videoId: "eh9OqEd5MKk",
+    gifUrl: "https://vcljmxuypmsnxzivsqyz.supabase.co/storage/v1/object/public/assets/mewing_3d.gif", // Custom 3D asset if available
     title: "Genetic Jaw Alignment (Mewing)",
     guidelines: [
       "Suction entire tongue to palate",
@@ -56,7 +59,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
     commonMistakes: ["Tongue tip pressure only", "Clenching teeth"],
   },
   "tongue posture": {
-    videoId: "zbZwLFBsOiM",
+    videoId: "eh9OqEd5MKk",
     title: "Structural Palate Support",
     guidelines: ["Maintain suction hold throughout", "Flatten tongue against palate"],
     formCues: ["Seal the back of the throat"],
@@ -71,15 +74,24 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   "chin tuck": {
     videoId: "k3mqkYDkPsk",
+    gifUrl: "https://vcljmxuypmsnxzivsqyz.supabase.co/storage/v1/object/public/assets/chin_tuck_guy.gif",
     title: "Cervical Spine Optimization",
     guidelines: ["Pull chin straight back toward spine", "Lengthen the back of the neck"],
     formCues: ["Imagine a string pulling head up"],
     commonMistakes: ["Tilting head down", "Shoulder shrugging"],
   },
+  "facial yoga": {
+    videoId: "3r3C6n4E-8c",
+    title: "Facial Symmetry Protocol",
+    guidelines: ["Balanced facial movements", "Focus on underused muscles", "Maintain static holds"],
+    formCues: ["Isolate facial muscles", "Relax the forehead"],
+    commonMistakes: ["Wrinkling skin while moving"],
+  },
 
-  // ─── BODY VECTORS ──────────────────────────────────────────────────────────
+  // ─── BODY VECTORS (STABLE GIFs) ──────────────────────────────────────────────
   "push up": {
     videoId: "IODxDxX7oi4",
+    gifUrl: "https://musclewiki.com/media/exercises/male-bodyweight-pushup-front.gif",
     title: "Tactical Push-Up Mechanics",
     guidelines: ["Elbows at 45 degree angle", "Full extension at top", "Core fully engaged"],
     formCues: ["Screw hands into floor", "Chest to floor"],
@@ -87,6 +99,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   "pull up": {
     videoId: "eGo4IYlbE5g",
+    gifUrl: "https://musclewiki.com/media/exercises/male-bodyweight-pullup-back.gif",
     title: "Latissimus Dorsi Optimization",
     guidelines: ["Full dead hang", "Pull until chest reaches bar", "Stretch at bottom"],
     formCues: ["Pull through elbows", "Scapular retraction"],
@@ -94,6 +107,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   squat: {
     videoId: "ultWZbUMPL8",
+    gifUrl: "https://musclewiki.com/media/exercises/male-barbell-squat-front.gif",
     title: "Kinetic Lower Body Drive",
     guidelines: ["Weight on midfoot/heels", "Hips back first", "Keep chest proud"],
     formCues: ["Spread the floor", "Brace core"],
@@ -101,6 +115,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   deadlift: {
     videoId: "op9kVnSso6Q",
+    gifUrl: "https://musclewiki.com/media/exercises/male-barbell-deadlift-front.gif",
     title: "Posterior Chain Force Production",
     guidelines: ["Shin contact with bar", "Hinge at hips", "Engage lats before pull"],
     formCues: ["Push through the floor", "Tuck chin"],
@@ -108,6 +123,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   "bench press": {
     videoId: "vcBig73ojpE",
+    gifUrl: "https://musclewiki.com/media/exercises/male-barbell-bench-press-front.gif",
     title: "Pectoral Vector Drive",
     guidelines: ["Shoulder blades pinned", "Feet planted", "Control the eccentric"],
     formCues: ["Break the bar", "Leg drive"],
@@ -115,21 +131,31 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   "bicep curl": {
     videoId: "ykJmrZ5v0Oo",
+    gifUrl: "https://musclewiki.com/media/exercises/male-dumbbell-bicep-curl-front.gif",
     title: "Peak Bicep Hypertrophy",
     guidelines: ["Full elbow extension", "No body momentum", "Focus on the squeeze"],
     formCues: ["Elbows pinned", "Rotate pinky up"],
     commonMistakes: ["Using legs", "Partial range"],
   },
+  "tricep dip": {
+    videoId: "0326m9nyzoc",
+    gifUrl: "https://musclewiki.com/media/exercises/male-bodyweight-tricep-dip-front.gif",
+    title: "Tricep Force Extension",
+    guidelines: ["Keep torso upright", "Full lockout at top", "Depth until elbows at 90"],
+    formCues: ["Squeeze triceps", "Shoulders back"],
+    commonMistakes: ["Leaning too far forward"],
+  },
   plank: {
     videoId: "ASdvN_XEl_c",
+    gifUrl: "https://musclewiki.com/media/exercises/male-bodyweight-plank-front.gif",
     title: "Total Core Isometrics",
     guidelines: ["Tuck pelvis", "Forearms parallel", "Neutral spine"],
     formCues: ["Brace for a punch", "Squeeze glutes"],
     commonMistakes: ["Head drop", "Arching back"],
   },
-  // ─── CONFIRMED FIX MAP ────────────────────────────────────────────────────────
   "face pull": {
     videoId: "HSoHeSjovGc",
+    gifUrl: "https://musclewiki.com/media/exercises/male-cable-face-pull-front.gif",
     title: "Rear Delt & Rotator Cuff Protocol",
     guidelines: ["Cable at face height", "Pull to ears with external rotation", "Squeeze shoulder blades"],
     formCues: ["Elbows high", "Rope to face level"],
@@ -137,13 +163,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   "overhead press": {
     videoId: "2yjwXTZQDDI",
-    title: "Overhead Press Force Production",
-    guidelines: ["Strict form — no leg drive", "Lock out at top", "Brace core throughout"],
-    formCues: ["Bar path vertical", "Head through at top"],
-    commonMistakes: ["Leaning back", "Flared elbows"],
-  },
-  ohp: {
-    videoId: "2yjwXTZQDDI",
+    gifUrl: "https://musclewiki.com/media/exercises/male-barbell-overhead-press-front.gif",
     title: "Overhead Press Force Production",
     guidelines: ["Strict form — no leg drive", "Lock out at top", "Brace core throughout"],
     formCues: ["Bar path vertical", "Head through at top"],
@@ -151,6 +171,7 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   "lateral raise": {
     videoId: "3VcKaXpzqRo",
+    gifUrl: "https://musclewiki.com/media/exercises/male-dumbbell-lateral-raise-front.gif",
     title: "Lateral Deltoid Isolation",
     guidelines: ["Slight bend in elbows", "Raise to shoulder height", "Control the negative"],
     formCues: ["Lead with pinky", "Slow eccentric"],
@@ -158,10 +179,11 @@ const EXERCISE_VIDEO_LIBRARY: Record<string, ExerciseVideoEntry> = {
   },
   "wall stand": {
     videoId: "RqcOCBb4arc",
-    title: "Wall Handstand Progression",
-    guidelines: ["Face the wall", "Walk feet up slowly", "Lock arms overhead"],
-    formCues: ["Core tight", "Look at the wall"],
-    commonMistakes: ["Arching back", "Holding breath"],
+    gifUrl: "https://musclewiki.com/media/exercises/male-bodyweight-wall-stand-side.gif",
+    title: "Vertical Alignment Hold",
+    guidelines: ["Back against wall", "Tuck chin", "Engage core"],
+    formCues: ["Minimize wall gap"],
+    commonMistakes: ["Holding breath"],
   },
   "cold shower": {
     videoId: "pq6WHJzOkno",
@@ -234,15 +256,14 @@ export default function ExerciseScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Get the video for this exercise
-  const baseVideoData = params.youtube_id
-    ? ({
-        videoId: params.youtube_id,
-        title: params.name || "Dynamic Force Protocol",
-        guidelines: ["Execute with tactical precision", "Maintain biological equilibrium"],
-        formCues: ["Engage stabilizers"],
-        commonMistakes: ["Compromising joint integrity"],
-      } as ExerciseVideoEntry)
-    : findVideoForExercise(params.name || "");
+  const baseLibraryData = findVideoForExercise(params.name || "");
+  
+  const baseVideoData = {
+    ...baseLibraryData,
+    ...(params.youtube_id ? { videoId: params.youtube_id } : {}),
+    ...(params.gif_url ? { gifUrl: params.gif_url } : {}),
+    title: params.name || baseLibraryData.title,
+  };
 
   // Build fallback video IDs list
   const exerciseKey = Object.keys(EXERCISE_VIDEO_LIBRARY).find(k =>
@@ -250,7 +271,14 @@ export default function ExerciseScreen() {
   ) || '';
   const fallbackIds = FALLBACK_VIDEOS[exerciseKey] || [baseVideoData.videoId];
   const currentVideoId = fallbackIds[videoIndex] || baseVideoData.videoId;
-  const videoData = { ...baseVideoData, videoId: currentVideoId };
+  
+  // Final data specifically for the current view
+  const videoData = { 
+    ...baseVideoData, 
+    videoId: currentVideoId,
+    // If the library entry has a GIF and we didn't get one from params, use the library one
+    gifUrl: params.gif_url || baseLibraryData.gifUrl 
+  };
 
   const tryNextVideo = () => {
     if (videoIndex < fallbackIds.length - 1) {
@@ -369,9 +397,9 @@ export default function ExerciseScreen() {
         {phase === "video" ? (
           <View style={styles.videoSection}>
             <View style={[styles.videoWrapper, { borderColor: theme.gold + "15", backgroundColor: "#000", overflow: 'hidden' }]}>
-              {params.gif_url ? (
+              {videoData.gifUrl ? (
                 <Image 
-                  source={{ uri: params.gif_url }}
+                  source={{ uri: videoData.gifUrl }}
                   style={{ width: '100%', height: '100%' }}
                   resizeMode="contain"
                 />

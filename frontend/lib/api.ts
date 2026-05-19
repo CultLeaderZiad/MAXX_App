@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-const API = process.env.EXPO_PUBLIC_BACKEND_URL;
+const API = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://maxx-app.onrender.com';
 
 export async function apiCall(
   endpoint: string,
@@ -10,20 +10,32 @@ export async function apiCall(
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Not authenticated');
 
-  const res = await fetch(`${API}${endpoint}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).detail || `HTTP ${res.status}`);
+  try {
+    const res = await fetch(`${API}${endpoint}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') throw new Error('Request timed out');
+    throw error;
   }
-  return res.json();
 }
 export async function auditProfile(platform: string, bio: string) {
   return apiCall('/api/profile-audit', 'POST', { platform, bio });

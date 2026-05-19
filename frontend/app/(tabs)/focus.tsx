@@ -12,6 +12,9 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { usePlan } from '../../hooks/usePlan';
 import { apiCall } from '../../lib/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { Card } from '../../src/components/Card';
 import { Badge } from '../../src/components/Badge';
@@ -77,6 +80,16 @@ const CONFIDENCE_MODULES = [
 
 // ─── Convo Scenarios ──────────────────────────────────────────────────────────
 const SCENARIOS = [
+  { id: 'maxx_mentor', title: 'MAXX AI Mentor', difficulty: 'MEDIUM', desc: 'The ultimate AI guide. Discuss goals, strategies, and mindset.', plan: 'alpha', category: 'mentor',
+    prompt: 'You are the core MAXX AI Mentor. Ask the user about their goals and help them build a roadmap.' },
+  { id: 'porn_avoidance', title: 'Brain Rewire (Stop Porn)', difficulty: 'HARD', desc: 'Handle urges and rewire your reward system.', plan: 'grind', category: 'social',
+    prompt: 'You are a stoic mentor helping the user stop porn addiction. Ask about their current triggers.' },
+  { id: 'money_mastery', title: 'Wealth Strategist', difficulty: 'MEDIUM', desc: 'Identify high-value skills and money routes.', plan: 'alpha', category: 'professional',
+    prompt: 'You are a wealth strategist. Guide the user through financial traps and opportunities.' },
+  { id: 'skill_acquisition', title: 'The Polymath (Learn Fast)', difficulty: 'MEDIUM', desc: 'Learn anything 5x faster than average.', plan: 'alpha', category: 'mentor',
+    prompt: 'Help the user identify the 20% of effort that gives 80% of results for any skill.' },
+  { id: 'speak_women', title: 'Master Social Calibration', difficulty: 'MEDIUM', desc: 'Speak to women naturally with zero anxiety.', plan: 'grind', category: 'dating',
+    prompt: 'Teach the user how to calibrate their approach based on social cues.' },
   { id: 'first_date', title: 'First Date', difficulty: 'EASY', desc: 'Break the ice and build rapport over coffee.', plan: 'trial', category: 'dating',
     prompt: 'You are a young woman on a first date at a coffee shop. React realistically — sometimes engaged, sometimes reserved. After 8 exchanges give a score 1-10 and feedback.' },
   { id: 'cold_approach', title: 'Street Cold Approach', difficulty: 'HARD', desc: 'Stop her on the street naturally.', plan: 'trial', category: 'dating',
@@ -107,7 +120,6 @@ const SCENARIOS = [
     prompt: 'You are an ex-girlfriend reaching out after 3 months of no contact. You miss the connection but testing if he has changed. React to his emotional control. After 6 exchanges give feedback.' },
   { id: 'interview_alpha', title: 'Leadership Interview', difficulty: 'MEDIUM', desc: 'Show authority in a job interview.', plan: 'grind', category: 'professional',
     prompt: 'You are a panel interviewer for a leadership position. Ask challenging behavioral questions. Evaluate the candidate on confidence, clarity, and leadership presence. After 6 exchanges give score and feedback.' },
-  // ─── NEW EXPANDED SCENARIOS ─────────────────────────────────────────────────
   { id: 'networking_event', title: 'Networking Event Power Move', difficulty: 'MEDIUM', desc: 'Work a room and make 3 valuable connections.', plan: 'grind', category: 'professional',
     prompt: 'You are an investor at a networking event. Someone young approaches you. Be polite but busy. Only engage deeply if their pitch is compelling. After 6 exchanges give detailed feedback on their networking skills.' },
   { id: 'confrontation', title: 'Verbal Confrontation', difficulty: 'HARD', desc: 'De-escalate a heated argument without backing down.', plan: 'alpha', category: 'social',
@@ -477,17 +489,21 @@ function ConfidenceView({ theme, user, canAccess, handleGate }: any) {
 // ─── Convo Lab View ────────────────────────────────────────────────────────────
 function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }: any) {
   const [selectedScenario, setSelectedScenario] = useState<any>(null);
-  const [messages, setMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
+  const [messages, setMessages] = useState<Array<{ id: string; role: string; content: string; image?: string }>>([]);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
-  const [typing, setTyping] = useState(false);
   const [showGuide, setShowGuide] = useState<string | null>(null);
   const [scenarioFilter, setScenarioFilter] = useState<string>('all');
   const scrollRef = useRef<ScrollView>(null);
+  const [showApiModal, setShowApiModal] = useState(false);
   const [userApiKey, setUserApiKey] = useState('');
   const [apiKeyInput, setApiKeyInput] = useState('');
-  const [showApiModal, setShowApiModal] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   const [pendingScenario, setPendingScenario] = useState<any>(null);
+  const [userModel, setUserModel] = useState('gemini-2.0-flash');
   const msgCounter = useRef(0);
 
   // ─── Tier Gate: Only Alpha / Sigma can access Convo Lab ──────────
@@ -498,6 +514,13 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
       if (val) {
         setUserApiKey(val);
         setApiKeyInput(val);
+      }
+    });
+    AsyncStorage.getItem('maxx_convo_model').then(val => {
+      if (val && val !== 'gemini-1.5-flash') {
+        setUserModel(val);
+      } else {
+        setUserModel('gemini-2.0-flash');
       }
     });
   }, []);
@@ -521,12 +544,40 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
     setSelectedScenario(scenario);
     setMessages([]);
     msgCounter.current = 0;
+    
+    // AI starts the conversation automatically to make it non-static
+    console.log(`[CONVO] Entering scenario: ${scenario.id}. Model: ${userModel}`);
+    setTyping(true);
+    apiCall('/api/conversation', 'POST', {
+      scenario: scenario.id,
+      messages: [],
+      user_message: "START_CONVERSATION_GREETING",
+      api_key: userApiKey || null,
+      model: userModel,
+    }).then(data => {
+      console.log(`[CONVO] Backend replied successfully:`, data.reply?.substring(0, 30));
+      setMessages([{ id: nextMsgId(), role: 'assistant', content: data.reply || "Let's begin. How can I help you with this today?" }]);
+    }).catch((err) => {
+      console.error(`[CONVO] API Error during entry:`, err.message);
+      const g: any = {
+        first_date: "Hey, I didn't expect to be this nervous on a first date... What made you choose this place?",
+        cold_approach: "Oh... um, hi? Can I help you?",
+        salary_negotiation: "Thanks for coming in. So, what were you expecting in terms of compensation?",
+        maxx_mentor: "I am the MAXX AI Mentor. I have been watching your progress. Tell me, what is your #1 goal right now?",
+        porn_avoidance: "The path to rewiring your brain is difficult but necessary. Are you currently facing an urge, or are we planning your reboot protocol?",
+        money_mastery: "Wealth is not about what you earned, but what you keep and how you leverage. What is your current income source?",
+      };
+      setMessages([{ id: nextMsgId(), role: 'assistant', content: g[scenario.id] || "Let's begin the scenario. Go ahead." }]);
+    }).finally(() => {
+      setTyping(false);
+    });
   };
 
   const saveApiKey = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setUserApiKey(apiKeyInput);
     AsyncStorage.setItem('maxx_convo_api_key', apiKeyInput);
+    AsyncStorage.setItem('maxx_convo_model', userModel);
     setShowApiModal(false);
     if (pendingScenario) {
       handleEnterScenario(pendingScenario);
@@ -534,33 +585,132 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
     }
   };
 
+  const renderApiModal = () => (
+    <Modal visible={showApiModal} transparent animationType="slide">
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 20 }}>
+        <View style={{ backgroundColor: theme.bgSurface, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: theme.border }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ color: theme.textPrimary, fontFamily: FONTS.cinzelBold, fontSize: 18 }}>
+              AI ENGINE SETTINGS
+            </Text>
+            <TouchableOpacity onPress={() => setShowApiModal(false)}>
+              <Feather name="x" size={20} color={theme.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 12, fontFamily: FONTS.regular, lineHeight: 20 }}>
+            MAXX Convo Lab uses the Google Gemini API to power real-time AI simulations. You need your own API key to continue.
+          </Text>
+
+          <TouchableOpacity 
+            onPress={() => Linking.openURL('https://aistudio.google.com/app/apikey')}
+            style={{ backgroundColor: theme.gold + '15', padding: 12, borderRadius: 10, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          >
+            <Feather name="external-link" size={16} color={theme.gold} />
+            <Text style={{ color: theme.gold, fontSize: 13, fontFamily: FONTS.semiBold }}>
+              Get Free Gemini API Key
+            </Text>
+          </TouchableOpacity>
+          
+          <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: FONTS.bold, marginBottom: 8 }}>API KEY</Text>
+          <TextInput
+            style={{ backgroundColor: theme.bgElevated, color: theme.textPrimary, borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: theme.border }}
+            placeholder="Enter your Gemini Key..."
+            placeholderTextColor={theme.textMuted}
+            value={apiKeyInput}
+            onChangeText={setApiKeyInput}
+            autoCapitalize="none"
+            secureTextEntry
+          />
+
+          <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: FONTS.bold, marginBottom: 8 }}>MODEL SELECTION</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
+            {[
+              { id: 'gemini-2.0-flash', label: '2.0 Flash', sub: 'New, Fast & Efficient' },
+              { id: 'gemini-1.5-pro', label: '1.5 Pro', sub: 'Maximum Intel' }
+            ].map(m => (
+              <TouchableOpacity
+                key={m.id}
+                onPress={() => setUserModel(m.id)}
+                style={{
+                  flex: 1,
+                  padding: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: userModel === m.id ? theme.gold : theme.border,
+                  backgroundColor: userModel === m.id ? theme.gold + '10' : theme.bgElevated,
+                }}
+              >
+                <Text style={{ color: userModel === m.id ? theme.gold : theme.textPrimary, fontFamily: FONTS.bold, fontSize: 12 }}>{m.label}</Text>
+                <Text style={{ color: theme.textMuted, fontSize: 10, marginTop: 2 }}>{m.sub}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <TouchableOpacity 
+            onPress={saveApiKey} 
+            style={{ backgroundColor: theme.gold, padding: 16, borderRadius: 12, alignItems: 'center' }}
+          >
+            <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold, fontSize: 14 }}>SAVE CONFIGURATION</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
   const handleSend = async () => {
-    if (!inputText.trim() || sending) return;
+    if ((!inputText.trim() && !selectedImage) || sending || !selectedScenario) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
     const userMsg = inputText.trim();
-    setInputText('');
-    const userMsgObj = { id: nextMsgId(), role: 'user', content: userMsg };
+    const currentImage = selectedImage;
+    setSending(true);
+
+    let base64 = null;
+    if (currentImage) {
+      try {
+        base64 = await FileSystem.readAsStringAsync(currentImage, { encoding: 'base64' });
+      } catch (err) {
+        console.error("Base64 error:", err);
+      }
+    }
+
+    const userMsgObj = { 
+      id: nextMsgId(), 
+      role: 'user', 
+      content: userMsg || "[Image]", 
+      image: currentImage || undefined 
+    };
+    
     const newMessages = [...messages, userMsgObj];
     setMessages(newMessages);
-    setSending(true);
+    setInputText('');
+    setSelectedImage(null);
     setTyping(true);
 
     try {
+      console.log("[ConvoLab] Sending request to:", selectedScenario.id);
       const data = await apiCall('/api/conversation', 'POST', {
         scenario: selectedScenario.id,
         messages: newMessages.map(m => ({ role: m.role, content: m.content })),
         user_message: userMsg,
         api_key: userApiKey || undefined,
+        image_base64: base64 || undefined,
+        model: userModel,
       });
       setTyping(false);
       setMessages(prev => [...prev, { id: nextMsgId(), role: 'assistant', content: data.reply || data.message || 'I see...' }]);
     } catch (err) {
+      console.error("[ConvoLab] API Error:", err);
       setTyping(false);
       const fallbacks: Record<string, string> = {
         first_date: "That's interesting... tell me more about yourself.",
         cold_approach: "Oh, um... hi. That was unexpected.",
         salary_negotiation: "We were thinking more around the range we discussed.",
-        default: "Hmm, let me think about that.",
+        maxx_mentor: "Got it. Based on your goals, we need to look at your daily habits first. What does your morning look like?",
+        porn_avoidance: "I understand. Discipline starts with the mind. Let's redirect that energy into your mission. Talk to me.",
+        money_mastery: "Leverage is the key. Tell me about your current skillset, and we'll see how to scale it.",
+        default: "Hmm, let me think about that. Tell me more.",
       };
       setMessages(prev => [...prev, { id: nextMsgId(), role: 'assistant', content: fallbacks[selectedScenario.id] || fallbacks.default }]);
     } finally {
@@ -569,15 +719,44 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
     }
   };
 
+  const toggleRecording = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!isRecording) {
+      setIsRecording(true);
+      // Mock recording behavior
+      setTimeout(() => {
+        setIsRecording(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setInputText("I want to work on my leadership skills... (Simulated Voice)");
+      }, 3000);
+    } else {
+      setIsRecording(false);
+    }
+  };
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaType.IMAGE,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0].uri);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
   const filteredScenarios = scenarioFilter === 'all' ? SCENARIOS : SCENARIOS.filter(s => s.category === scenarioFilter);
 
   if (selectedScenario) {
     return (
-      <View style={styles.labContainer}>
+      <View style={[styles.labContainer, { paddingBottom: insets.bottom + 100 }]}>
+        {renderApiModal()}
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
           style={styles.flex}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 140 : 0}
         >
           <View style={[styles.labHeader, { backgroundColor: theme.bgSurface, borderColor: theme.border }]}>
             <TouchableOpacity onPress={() => { setSelectedScenario(null); setMessages([]); }} style={{ padding: 10 }}>
@@ -599,13 +778,10 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
             contentContainerStyle={[styles.chatScroll, { paddingBottom: 100 }]}
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           >
-            {messages.length === 0 && (
+            {messages.length === 0 && !typing && (
               <View style={[styles.msgBox, { backgroundColor: theme.bgElevated, maxWidth: '85%', alignSelf: 'flex-start', marginBottom: 16 }]}>
                 <Text style={[styles.msgText, { color: theme.textPrimary, fontFamily: FONTS.regular }]}>
-                  {selectedScenario.id === 'first_date' ? "Hey, I didn't expect to be this nervous on a first date... What made you choose this place?" :
-                   selectedScenario.id === 'cold_approach' ? "Oh... um, hi? Can I help you?" :
-                   selectedScenario.id === 'salary_negotiation' ? "Thanks for coming in. So, what were you expecting in terms of compensation?" :
-                   "Let's begin the scenario. Go ahead."}
+                  Loading AI response...
                 </Text>
               </View>
             )}
@@ -619,7 +795,16 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
                   borderColor: msg.role === 'user' ? theme.gold : theme.border,
                   maxWidth: '85%',
                 }]}>
-                  <Text style={[styles.msgText, { color: msg.role === 'user' ? '#0A0A0A' : theme.textPrimary, fontFamily: FONTS.regular }]}>{msg.content}</Text>
+                  {msg.image && (
+                    <Image 
+                      source={{ uri: msg.image }} 
+                      style={{ width: 180, height: 180, borderRadius: 8, marginBottom: 8 }} 
+                      resizeMode="cover"
+                    />
+                  )}
+                  {msg.content ? (
+                    <Text style={[styles.msgText, { color: msg.role === 'user' ? '#0A0A0A' : theme.textPrimary, fontFamily: FONTS.regular }]}>{msg.content}</Text>
+                  ) : null}
                 </View>
               </View>
             ))}
@@ -630,21 +815,53 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
             )}
           </ScrollView>
 
-          <View style={[styles.chatInputRow, { backgroundColor: theme.bgSurface, borderTopWidth: 1, borderColor: theme.border, paddingBottom: Platform.OS === 'ios' ? 20 : 10 }]}>
+          {selectedImage && (
+            <View style={{ paddingHorizontal: SPACING.md, paddingTop: 10, flexDirection: 'row' }}>
+              <View style={{ position: 'relative' }}>
+                <Image source={{ uri: selectedImage }} style={{ width: 60, height: 60, borderRadius: 8, borderWidth: 1, borderColor: theme.gold }} />
+                <TouchableOpacity 
+                  onPress={() => setSelectedImage(null)}
+                  style={{ position: 'absolute', top: -8, right: -8, backgroundColor: '#FF4444', borderRadius: 10, padding: 2 }}
+                >
+                  <Feather name="x" size={12} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <View style={[styles.chatInputRow, { backgroundColor: theme.bgSurface, borderTopWidth: 1, borderColor: theme.border, elevation: 15 }]}>
+            <TouchableOpacity onPress={pickImage} style={[styles.micBtn, { backgroundColor: theme.bgElevated }]}>
+              <Feather name="image" size={20} color={theme.gold} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={toggleRecording} 
+              style={[styles.micBtn, { backgroundColor: isRecording ? '#FF4444' : theme.bgElevated, borderColor: isRecording ? '#FF4444' : theme.gold + '44' }]}
+            >
+              <Feather name={isRecording ? "square" : "mic"} size={22} color={isRecording ? "#FFF" : theme.gold} />
+            </TouchableOpacity>
+
             <TextInput
-              style={[styles.chatInput, { backgroundColor: theme.bgElevated, borderColor: theme.border, color: theme.textPrimary, fontFamily: FONTS.regular }]}
-              placeholder="Type a message..."
+              style={[styles.chatInput, { backgroundColor: theme.bgElevated, borderColor: theme.border, color: theme.textPrimary, fontFamily: FONTS.regular, minHeight: 46 }]}
+              placeholder={isRecording ? "Recording..." : "Message Agent..."}
               placeholderTextColor={theme.textMuted}
               value={inputText}
               onChangeText={setInputText}
               returnKeyType="send"
               onSubmitEditing={handleSend}
-              editable={!sending}
+              editable={!sending && !isRecording}
+              multiline={false}
             />
-            <TouchableOpacity onPress={handleSend} style={[styles.sendCircle, { backgroundColor: theme.gold }]} disabled={sending || !inputText.trim()}>
-              <Feather name="send" size={16} color="#0A0A0A" />
+            
+            <TouchableOpacity 
+              onPress={handleSend} 
+              style={[styles.sendCircle, { backgroundColor: (inputText.trim() || selectedImage) ? theme.gold : theme.bgElevated, opacity: (inputText.trim() || selectedImage) ? 1 : 0.5 }]} 
+              disabled={sending || (!inputText.trim() && !selectedImage)}
+            >
+              <Feather name="send" size={18} color={(inputText.trim() || selectedImage) ? "#0A0A0A" : theme.textMuted} />
             </TouchableOpacity>
           </View>
+          <View style={{ height: Platform.OS === 'ios' ? 34 : 20, backgroundColor: theme.bgSurface }} />
         </KeyboardAvoidingView>
       </View>
     );
@@ -672,8 +889,31 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
-      {/* ── Conversation Guidelines ── */}
+    <View style={styles.flex}>
+      {/* Absolute Settings Button - Ensures clickability */}
+      <View style={{ position: 'absolute', top: 12, right: 16, zIndex: 100 }}>
+        <TouchableOpacity 
+          onPress={() => { 
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setApiKeyInput(userApiKey); 
+            setShowApiModal(true); 
+          }}
+          style={{ paddingVertical: 8, paddingHorizontal: 12, backgroundColor: theme.bgElevated, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, elevation: 5, shadowColor: theme.gold, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Feather name="settings" size={14} color={theme.gold} />
+            <Text style={{ color: theme.gold, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 0.5 }}>AI SETTINGS</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Header Bar */}
+      <View style={{ paddingHorizontal: SPACING.lg, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.bgSurface }}>
+        <Text style={{ color: theme.textPrimary, fontFamily: FONTS.cinzelBold, fontSize: 16 }}>CONVO LAB</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={[styles.tabContent, { paddingTop: 20 }]} showsVerticalScrollIndicator={false}>
+        {/* ── Conversation Guidelines ── */}
       <Text style={[styles.sectionTitle, { color: theme.gold, marginBottom: SPACING.sm }]}>CONVERSATION GUIDELINES</Text>
       <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: SPACING.md, fontFamily: FONTS.regular }}>Master these principles before entering any scenario.</Text>
       {CONVO_GUIDELINES.map((g) => (
@@ -704,7 +944,7 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
       <Text style={[styles.sectionTitle, { color: theme.textMuted, marginTop: SPACING.lg, marginBottom: SPACING.sm }]}>SELECT SCENARIO</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.md, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {['all', 'dating', 'social', 'professional'].map(cat => (
+          {['all', 'mentor', 'dating', 'social', 'professional'].map(cat => (
             <TouchableOpacity
               key={cat}
               onPress={() => setScenarioFilter(cat)}
@@ -760,46 +1000,10 @@ function ConvoLabView({ theme, user, canAccess, handleGate, initialScenarioId }:
         </View>
       ))}
 
-      {/* API Key Modal */}
-      <Modal visible={showApiModal} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: theme.bgSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 }}>
-            <Text style={{ color: theme.textPrimary, fontFamily: FONTS.cinzelBold, fontSize: 18, marginBottom: 8 }}>
-              Configure AI Engine
-            </Text>
-            <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 10, fontFamily: FONTS.regular, lineHeight: 20 }}>
-              MAXX Convo Lab uses Gemini to simulate conversations. Please enter your Gemini API Key to continue (we do not store this, it is saved locally on your device).
-            </Text>
-            <TouchableOpacity onPress={() => Linking.openURL('https://aistudio.google.com/app/apikey')} style={{ marginBottom: 20 }}>
-              <Text style={{ color: theme.gold, fontSize: 13, fontFamily: FONTS.semiBold, textDecorationLine: 'underline' }}>
-                How to get a Gemini API Key?
-              </Text>
-            </TouchableOpacity>
-            
-            <TextInput
-              style={{ backgroundColor: theme.bgElevated, color: theme.textPrimary, borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: theme.border }}
-              placeholder="AI-xxxxxxxxxxxxxxxxxxx"
-              placeholderTextColor={theme.textMuted}
-              value={apiKeyInput}
-              onChangeText={setApiKeyInput}
-              autoCapitalize="none"
-              secureTextEntry
-            />
-            
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity onPress={() => setShowApiModal(false)} style={{ flex: 1, padding: 14, borderRadius: 10, backgroundColor: theme.bgElevated, alignItems: 'center' }}>
-                <Text style={{ color: theme.textMuted, fontFamily: FONTS.semiBold }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={saveApiKey} style={{ flex: 2, padding: 14, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center' }}>
-                <Text style={{ color: '#0A0A0A', fontFamily: FONTS.bold }}>SAVE & CONTINUE</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
+      {renderApiModal()}
       <View style={{ height: 80 }} />
     </ScrollView>
+    </View>
   );
 }
 
@@ -1331,7 +1535,8 @@ const styles = StyleSheet.create({
   msgRow: { flexDirection: 'row', marginBottom: SPACING.sm },
   msgBox: { padding: SPACING.md, borderRadius: 14 },
   msgText: { fontSize: 14, lineHeight: 22 },
-  chatInputRow: { flexDirection: 'row', padding: SPACING.lg, gap: 12, alignItems: 'center' },
-  chatInput: { flex: 1, height: 50, borderRadius: 25, borderWidth: 1, paddingHorizontal: 20 },
+  chatInputRow: { flexDirection: 'row', paddingHorizontal: SPACING.md, paddingVertical: 12, gap: 10, alignItems: 'center' },
+  chatInput: { flex: 1, height: 46, borderRadius: 23, borderWidth: 1, paddingHorizontal: 16 },
   sendCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  micBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

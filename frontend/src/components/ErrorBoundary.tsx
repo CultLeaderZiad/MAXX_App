@@ -1,7 +1,8 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { FONTS, GOLD, SPACING, RADIUS } from '../constants/theme';
+import { FONTS, SPACING, RADIUS, DARK_THEME } from '../constants/theme';
+const GOLD = DARK_THEME.gold;
 
 interface Props {
   children: ReactNode;

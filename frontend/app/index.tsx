@@ -246,7 +246,7 @@ export default function WelcomeScreen() {
         <Button
           title="I ALREADY HAVE AN ACCOUNT"
           onPress={() => router.push("/login")}
-          variant="outline"
+          variant="secondary"
           testID="login-btn"
         />
       </Animated.View>

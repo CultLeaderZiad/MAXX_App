@@ -65,21 +65,33 @@ async def get_current_user(authorization: str = Header(None)) -> str:
             detail="Missing or invalid Authorization header"
         )
     token = authorization.replace("Bearer ", "", 1)
-    if not SUPABASE_JWT_SECRET:
-        raise HTTPException(status_code=500, detail="Server JWT secret not configured")
+    
+    # Fast path if we have the secret
+    if SUPABASE_JWT_SECRET and SUPABASE_JWT_SECRET != "your_supabase_jwt_secret_here":
+        try:
+            payload = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                options={"verify_aud": False}
+            )
+            user_id: str = payload.get("sub")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Invalid token: missing sub")
+            return user_id
+        except jwt.PyJWTError:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+            
+    # Reliable path: use Supabase's API to validate the token
+    if not supabase_admin:
+         raise HTTPException(status_code=500, detail="Server Supabase client not configured")
     try:
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
-        user_id: str = payload.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token: missing sub")
-        return user_id
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        res = supabase_admin.auth.get_user(token)
+        if not res or not res.user:
+            raise HTTPException(status_code=401, detail="Token verification failed via Supabase API")
+        return res.user.id
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")
 
 # ── Request Models ────────────────────────────────────────────────────────────
 class OnboardingData(BaseModel):
@@ -107,6 +119,8 @@ class ConversationRequest(BaseModel):
     messages: List[Dict[str, str]]
     user_message: str
     api_key: Optional[str] = None
+    image_base64: Optional[str] = None
+    model: Optional[str] = 'gemini-1.5-flash'
 
 class SupportTicketRequest(BaseModel):
     name: str
@@ -350,6 +364,11 @@ async def conversation(
             "conflict_frame": "You are a peer who disagrees strongly. Push back. After 6 exchanges give feedback on how well he held his frame.",
             "group_social": "You are part of a group. The user is joining. React naturally. After 8 exchanges give a score and feedback.",
             "texting_game": "You are a girl who met this guy once. He is texting you. You are slightly interested but testing. After 6 texts give whether he could have gotten a date.",
+            "porn_avoidance": "You are the MAXX AI Mentor specializing in brain rewiring and addiction recovery. Help the user navigate an urge or implement a 90-day reboot. Be supportive but stoic and firm on discipline.",
+            "money_mastery": "You are the MAXX AI Wealth Strategist. Help the user identify side hustles, career moves, or investment mindsets based on their current situation. Focus on high-value skills and leverage.",
+            "skill_acquisition": "You are the MAXX AI Mastery Coach. Help the user learn any skill (fighting, coding, social skills) using the 80/20 rule and deliberate practice principles.",
+            "speak_women": "You are a balanced dating coach focusing on honest attraction, frame, and social calibration. Help the user master conversations with women without manipulation.",
+            "maxx_mentor": "You are the Ultimate MAXX AI Mentor. You have mastered every domain of life: physique, finance, social dynamics, and mindset. Your goal is to gather the user's goals and provide a brutal but effective roadmap."
         }.get(req.scenario, "React naturally. After 6 exchanges give honest feedback.")
 
         conversation_history = "\n".join([
@@ -363,16 +382,24 @@ async def conversation(
             f"Respond as the character (1-2 sentences max):"
         )
 
-        import urllib.request
-        import json
-        req_data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode('utf-8')
-        req_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={active_key}"
+        parts = [{"text": prompt}]
+        if req.image_base64:
+            parts.append({
+                "inline_data": {
+                    "mime_type": "image/jpeg",
+                    "data": req.image_base64
+                }
+            })
+
+        req_data = json.dumps({"contents": [{"parts": parts}]}).encode('utf-8')
+        target_model = req.model or "gemini-1.5-flash"
+        req_url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={active_key}"
         urllib_req = urllib.request.Request(req_url, data=req_data, headers={'Content-Type': 'application/json'})
         
         with urllib.request.urlopen(urllib_req) as response:
             res_data = json.loads(response.read().decode('utf-8'))
             
-        text = res_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "Let me think about that...")
+        text = res_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "I see what you've sent. Let me process that.")
         return {"reply": text.strip()}
     except Exception as e:
         logger.error(f"Conversation error: {e}")

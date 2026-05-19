@@ -44,25 +44,16 @@ export default function PaymentScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setLoading(true);
     try {
-      if (user) {
-        const { error } = await supabase
-          .from("profiles")
-          .update({
+      // Sync profile update to Supabase
+      if (user?.id) {
+        try {
+          await supabase.from("profiles").update({ 
             plan: (plan as string).toLowerCase(),
             trial_start: new Date().toISOString(),
-          })
-          .eq("id", user.id);
-
-        if (error) {
-          console.log("update error:", error);
+          }).eq("id", user.id);
+        } catch (err) {
+          console.warn("Sync to Supabase failed", err);
         }
-      }
-
-      // Update profile in Supabase
-      try {
-        await supabase.from("profiles").update({ plan }).eq("id", user.id);
-      } catch (e) {
-        console.warn("Sync to Supabase failed", e);
       }
 
       await fetchProfile();

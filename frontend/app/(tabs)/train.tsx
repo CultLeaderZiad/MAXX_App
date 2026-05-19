@@ -638,6 +638,17 @@ function BodyTab({ theme }: { theme: any }) {
   }
 
   const hasData = stats.weight !== '—' || stats.bmi !== '—';
+  
+  // Find macro data if exists
+  const [macroData, setMacroData] = useState<any>(null);
+  useEffect(() => {
+    const fetchMacros = async () => {
+      if (!user?.id) return;
+      const { data } = await supabase.from('calculator_results').select('results').eq('user_id', user.id).eq('calc_type', 'macro').single();
+      if (data) setMacroData(data.results);
+    };
+    fetchMacros();
+  }, [user]);
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -660,11 +671,34 @@ function BodyTab({ theme }: { theme: any }) {
           <View key={s.label} style={bodyStyles.statsCell}>
             <Text style={[bodyStyles.statsCellValue, { color: theme.gold, fontFamily: FONTS.cinzelBold }]}>{s.value}</Text>
             <Text style={[bodyStyles.statsCellLabel, { color: theme.textMuted }]}>
-              {hasData ? s.label : (i === 0 ? 'Tap a calculator below' : s.label)}
+              {hasData ? s.label : (i === 0 ? 'Tap a calculator' : s.label)}
             </Text>
           </View>
         ))}
       </View>
+
+      {/* SECTION 2b — Macro Summary (Premium UI Card) */}
+      {macroData && (
+        <View style={[bodyStyles.macroCard, { backgroundColor: theme.bgSurface, borderColor: theme.gold + '44' }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ color: theme.gold, fontFamily: FONTS.cinzelBold, fontSize: 12 }}>Macro Targets</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 10 }}>DAILY PROTOCOL</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {[
+              { label: 'CALORIES', value: macroData.calories, color: theme.textPrimary },
+              { label: 'PROTEIN', value: `${macroData.protein}g`, color: '#E74C3C' },
+              { label: 'CARBS', value: `${macroData.carbs}g`, color: '#4A90D9' },
+              { label: 'FAT', value: `${macroData.fats}g`, color: '#F1C40F' },
+            ].map(m => (
+              <View key={m.label} style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ color: m.color, fontFamily: FONTS.bold, fontSize: 13 }}>{m.value}</Text>
+                <Text style={{ color: theme.textMuted, fontSize: 7, marginTop: 2 }}>{m.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       {/* SECTION 3 — Body Calculators label */}
       <Text style={[bodyStyles.sectionLabel, { color: theme.textMuted }]}>BODY CALCULATORS</Text>
@@ -832,6 +866,16 @@ const bodyStyles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   naturalMaxText: { color: '#2ECC71', fontSize: 8, fontWeight: '700' },
+  macroCard: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
 });
 
 // ─── Nutrition Tab ────────────────────────────────────────────────────────────

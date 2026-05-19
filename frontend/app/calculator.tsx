@@ -88,7 +88,7 @@ const CALC_TITLES: Record<CalcType, string> = {
 
 export default function CalculatorScreen() {
   const { theme } = useTheme();
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ type: string }>();
   const calcType = (params.type || 'calorie') as CalcType;
@@ -133,6 +133,27 @@ export default function CalculatorScreen() {
     else router.replace('/(tabs)' as any);
   };
 
+  useEffect(() => {
+    // Fetch previous results for this calcType to pre-fill specific inputs
+    const fetchPrevious = async () => {
+      if (!user?.id) return;
+      const { data } = await supabase.from('calculator_results')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('calc_type', calcType)
+        .single();
+      if (data && data.inputs) {
+        const i = data.inputs;
+        if (i.neck_cm) setNeckCm(String(i.neck_cm));
+        if (i.waist_cm) setWaistCm(String(i.waist_cm));
+        if (i.activity_level) setActivityLevel(i.activity_level);
+        if (i.goal) setGoal(i.goal);
+        if (i.calories_target) setCalorieTarget(String(i.calories_target));
+      }
+    };
+    fetchPrevious();
+  }, [calcType]);
+
   const saveResult = async (inputs: any, results: any) => {
     if (!user?.id) return;
     setSaving(true);
@@ -147,16 +168,25 @@ export default function CalculatorScreen() {
         results,
         unit_system: unitSystem,
       });
+
       // Update profile with weight/height if available
       const updates: any = {};
-      if (inputs.weight_kg) updates.weight_kg = inputs.weight_kg;
-      if (inputs.height_cm) updates.height_cm = inputs.height_cm;
-      if (inputs.age) updates.age = inputs.age;
+      if (inputs.weight_kg) updates.weight_kg = parseFloat(inputs.weight_kg);
+      if (inputs.height_cm) updates.height_cm = parseFloat(inputs.height_cm);
+      if (inputs.age) updates.age = parseInt(inputs.age);
       if (inputs.gender) updates.gender = inputs.gender;
+      
+      // Award XP for calculation (limited to once per type per day? Or just always)
+      const currentXP = profile?.xp || 0;
+      updates.xp = currentXP + 25; // Small reward for using tools
+
       if (Object.keys(updates).length > 0) {
-        await supabase.from('profiles').update(updates).eq('id', user.id);
+        const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+        if (error) console.error('Profile update error:', error);
       }
-      Alert.alert('Saved', 'Results saved to your profile.');
+      
+      await refreshProfile(); 
+      Alert.alert('Analysis Complete', 'Your results have been synchronized and you earned +25 XP!');
     } catch (e) {
       console.error('Save error:', e);
       Alert.alert('Error', 'Could not save results.');
