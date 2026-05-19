@@ -15,8 +15,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta
-import jwt
-from jwt.exceptions import PyJWTError, InvalidTokenError
+from jose import jwt, JWTError
 import json
 
 ROOT_DIR = Path(__file__).parent
@@ -57,41 +56,25 @@ logger = logging.getLogger(__name__)
 
 # ── Auth dependency ───────────────────────────────────────────────────────────
 # Security: Validates Supabase JWT — all protected routes use this dependency.
-async def get_current_user(authorization: str = Header(None)) -> str:
-    """Validates Supabase JWT and returns user_id (sub claim)."""
+async def get_current_user(
+    authorization: str = Header(None)
+) -> str:
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header"
-        )
-    token = authorization.replace("Bearer ", "", 1)
-    
-    # Fast path if we have the secret
-    if SUPABASE_JWT_SECRET and SUPABASE_JWT_SECRET != "your_supabase_jwt_secret_here":
-        try:
-            payload = jwt.decode(
-                token,
-                SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
-                options={"verify_aud": False}
-            )
-            user_id: str = payload.get("sub")
-            if not user_id:
-                raise HTTPException(status_code=401, detail="Invalid token: missing sub")
-            return user_id
-        except jwt.PyJWTError:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-            
-    # Reliable path: use Supabase's API to validate the token
-    if not supabase_admin:
-         raise HTTPException(status_code=500, detail="Server Supabase client not configured")
+        raise HTTPException(status_code=401, detail="Missing token")
+    token = authorization.replace("Bearer ", "")
     try:
-        res = supabase_admin.auth.get_user(token)
-        if not res or not res.user:
-            raise HTTPException(status_code=401, detail="Token verification failed via Supabase API")
-        return res.user.id
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401)
+        return user_id
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 # ── Request Models ────────────────────────────────────────────────────────────
 class OnboardingData(BaseModel):
